@@ -4,7 +4,7 @@
 (eldev-use-package-archive 'melpa)
 
 
-(setf eldev-project-main-file "raindrop.el")
+(setf eldev-project-main-file "karakeep.el")
 (eldev-add-loading-roots 'test "test")
 (eldev-add-extra-dependencies 'runtime 'request)
 (eldev-add-extra-dependencies 'test 'request)

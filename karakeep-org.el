@@ -1,9 +1,9 @@
-;;; raindrop-org.el --- Org integration for raindrop.el -*- lexical-binding: t; -*-
+;;; karakeep-org.el --- Org integration for karakeep.el -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2025 artawower
 
 ;; Author: artawower <artawower33@gmail.com>
-;; URL: https://github.com/artawower/raindrop.el
+;; URL: https://github.com/julian-hoch/karakeep.el
 ;; Package-Requires: ((emacs "27.1") (org "9.4"))
 ;; Version: 0.1.0
 ;; Keywords: convenience, outlines, hyperlinks
@@ -22,92 +22,92 @@
 ;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 ;;; Commentary:
-;; Org-facing utilities for raindrop.el.
+;; Org-facing utilities for karakeep.el.
 
 ;;; Code:
 
 (require 'org)
 (require 'subr-x)
 (require 'seq)
-(require 'raindrop)
+(require 'karakeep)
 
-(defun raindrop-org--debug (fmt &rest args)
-  "Log debug message if `raindrop-debug' is enabled."
-  (when (bound-and-true-p raindrop-debug)
-    (message "raindrop-org: %s" (apply #'format fmt args))))
+(defun karakeep-org--debug (fmt &rest args)
+  "Log debug message if `karakeep-debug' is enabled."
+  (when (bound-and-true-p karakeep-debug)
+    (message "karakeep-org: %s" (apply #'format fmt args))))
 
-(defgroup raindrop-org nil
-  "Org integration for raindrop.el."
-  :group 'raindrop)
+(defgroup karakeep-org nil
+  "Org integration for karakeep.el."
+  :group 'karakeep)
 
-(defcustom raindrop-links-empty-text "- No results"
+(defcustom karakeep-links-empty-text "- No results"
   "Text inserted when no links are found."
   :type 'string
-  :group 'raindrop-org)
+  :group 'karakeep-org)
 
-(defcustom raindrop-heading-tags-match 'all
+(defcustom karakeep-heading-tags-match 'all
   "Default matching semantics when extracting tags from a heading."
   :type '(choice (const all) (const any))
-  :group 'raindrop-org)
+  :group 'karakeep-org)
 
-(defcustom raindrop-org-render-tags t
+(defcustom karakeep-org-render-tags t
   "If non-nil, append item tags after the link title."
   :type 'boolean
-  :group 'raindrop-org)
+  :group 'karakeep-org)
 
-(defcustom raindrop-org-excerpt-next-line t
+(defcustom karakeep-org-excerpt-next-line t
   "If non-nil, render excerpt on the next indented line."
   :type 'boolean
-  :group 'raindrop-org)
+  :group 'karakeep-org)
 
-(defcustom raindrop-org-excerpt-indent 3
+(defcustom karakeep-org-excerpt-indent 3
   "Number of spaces to indent the excerpt line."
   :type 'integer
-  :group 'raindrop-org)
+  :group 'karakeep-org)
 
-(defcustom raindrop-org-smart-grouping-default nil
+(defcustom karakeep-org-smart-grouping-default nil
   "If non-nil, group items under headings automatically in dynamic blocks."
   :type 'boolean
-  :group 'raindrop-org)
+  :group 'karakeep-org)
 
-(defcustom raindrop-org-smart-min-count 2
+(defcustom karakeep-org-smart-min-count 2
   "Minimum tag frequency required for a tag to become a heading."
   :type 'integer
-  :group 'raindrop-org)
+  :group 'karakeep-org)
 
-(defcustom raindrop-org-smart-max-groups 8
+(defcustom karakeep-org-smart-max-groups 8
   "Maximum number of auto-generated groups (headings)."
   :type 'integer
-  :group 'raindrop-org)
+  :group 'karakeep-org)
 
-(defcustom raindrop-org-smart-stop-tags
+(defcustom karakeep-org-smart-stop-tags
   '("cli" "terminal" "software" "opensource" "free-software" "awesome-software")
   "Tags considered too generic and excluded from auto-grouping."
   :type '(repeat string)
-  :group 'raindrop-org)
+  :group 'karakeep-org)
 
-(defcustom raindrop-org-smart-heading-level 3
+(defcustom karakeep-org-smart-heading-level 3
   "Org heading level used for auto-grouping headings."
   :type 'integer
-  :group 'raindrop-org)
+  :group 'karakeep-org)
 
-(defun raindrop-org--log (fmt &rest args)
-  "Log a debug message FMT with ARGS when `raindrop-debug-enable' is non-nil."
-  (when (bound-and-true-p raindrop-debug-enable)
-    (apply #'message (concat "raindrop-org: " fmt) args)))
+(defun karakeep-org--log (fmt &rest args)
+  "Log a debug message FMT with ARGS when `karakeep-debug-enable' is non-nil."
+  (when (bound-and-true-p karakeep-debug-enable)
+    (apply #'message (concat "karakeep-org: " fmt) args)))
 
-(defun raindrop-org--sanitize (s)
+(defun karakeep-org--sanitize (s)
   "Return S trimmed and with newlines collapsed for list context."
   (when (stringp s)
     (replace-regexp-in-string "\n+" " " (string-trim s))))
 
-(defalias 'raindrop--sanitize-org 'raindrop-org--sanitize)
+(defalias 'karakeep--sanitize-org 'karakeep-org--sanitize)
 
-(defun raindrop-org--format-tags (tags)
+(defun karakeep-org--format-tags (tags)
   "Return a formatted tags suffix for TAGS or nil when empty."
-  (when raindrop-debug-enable
-    (raindrop-org--debug "format-tags input=%S (listp=%S vectorp=%S)" tags (listp tags) (vectorp tags)))
-  (when (and raindrop-org-render-tags tags)
+  (when karakeep-debug-enable
+    (karakeep-org--debug "format-tags input=%S (listp=%S vectorp=%S)" tags (listp tags) (vectorp tags)))
+  (when (and karakeep-org-render-tags tags)
     (let* ((tag-list (cond
                       ((vectorp tags) (append tags nil))
                       ((listp tags) tags)
@@ -115,12 +115,12 @@
            (meaningful-tags (seq-filter (lambda (x) (and x (not (string-empty-p (format "%s" x))))) tag-list)))
       (when meaningful-tags
         (let* ((names (mapcar (lambda (tag) (if (symbolp tag) (symbol-name tag) (format "%s" tag))) meaningful-tags))
-               (san (mapcar #'raindrop-org--sanitize names)))
-          (when (bound-and-true-p raindrop-debug)
-            (raindrop-org--debug "formatted tags=%S" (format "  (%s)" (string-join san ", "))))
+               (san (mapcar #'karakeep-org--sanitize names)))
+          (when (bound-and-true-p karakeep-debug)
+            (karakeep-org--debug "formatted tags=%S" (format "  (%s)" (string-join san ", "))))
           (format "  (%s)" (string-join san ", ")))))))
 
-(defun raindrop-render-org-list (items)
+(defun karakeep-render-org-list (items)
   "Render ITEMS as an Org bullet list.
 Each item is a plist/alist with keys :link, :title, :excerpt, :tags."
   (mapconcat
@@ -129,19 +129,19 @@ Each item is a plist/alist with keys :link, :title, :excerpt, :tags."
             (title (or (plist-get it :title) (alist-get :title it) link))
             (excerpt (or (plist-get it :excerpt) (alist-get :excerpt it) ""))
             (tags (or (plist-get it :tags) (alist-get :tags it)))
-            (title* (raindrop-org--sanitize title))
-            (excerpt* (raindrop-org--sanitize excerpt))
-            (tags* (raindrop-org--format-tags tags))
+            (title* (karakeep-org--sanitize title))
+            (excerpt* (karakeep-org--sanitize excerpt))
+            (tags* (karakeep-org--format-tags tags))
             (head (format "- [[%s][%s]]%s" link title* (or tags* ""))))
-       (if (and raindrop-org-excerpt-next-line
+       (if (and karakeep-org-excerpt-next-line
                 excerpt* (> (length excerpt*) 0))
-           (concat head "\n" (make-string raindrop-org-excerpt-indent ?\s) excerpt*)
+           (concat head "\n" (make-string karakeep-org-excerpt-indent ?\s) excerpt*)
          head)))
    items
    "\n"))
 
 
-(defun raindrop-org--parse-tags-string (tags-string)
+(defun karakeep-org--parse-tags-string (tags-string)
   "Parse TAGS-STRING with comma separation into tags and excluded tags.
 For comma-separated format: \"cli, -openai, emacs\" -> (:tags (\"cli\" \"emacs\") :excluded-tags (\"openai\"))
 For single tag with spaces: \"disk usage\" -> (:tags (\"disk usage\") :excluded-tags nil)
@@ -163,7 +163,7 @@ For exclusion: \"-disk usage\" -> (:tags nil :excluded-tags (\"disk usage\"))"
       (list :tags (nreverse tags)
             :excluded-tags (nreverse excluded-tags)))))
 
-(defun raindrop-org--parse-folders-string (folders-string)
+(defun karakeep-org--parse-folders-string (folders-string)
   "Parse FOLDERS-STRING with comma separation.
 Example: \"folder1,folder2,folder3\" -> (\"folder1\" \"folder2\" \"folder3\")"
   (when (and folders-string (not (string-empty-p folders-string)))
@@ -176,9 +176,9 @@ Example: \"folder1,folder2,folder3\" -> (\"folder1\" \"folder2\" \"folder3\")"
        (cl-every #'keywordp (cl-loop for i from 0 below (length list) by 2
                                      collect (nth i list)))))
 
-(defun raindrop-org--parse-dblock-params (params)
+(defun karakeep-org--parse-dblock-params (params)
   "Parse org-mode dynamic block PARAMS into a proper plist.
-Handles cases where org-mode passes mixed lists like (:name \"raindrop\" :tags cli -openai :match all)."
+Handles cases where org-mode passes mixed lists like (:name \"karakeep\" :tags cli -openai :match all)."
   (let ((result '())
         (current-key nil)
         (current-values '()))
@@ -217,18 +217,18 @@ Handles cases where org-mode passes mixed lists like (:name \"raindrop\" :tags c
                                 (reverse current-values)))))
     result))
 
-(defun raindrop-org--param (params key &optional default)
+(defun karakeep-org--param (params key &optional default)
   "Get KEY from PARAMS (plist or alist). Return DEFAULT when absent."
   (let ((parsed-params 
          (cond
           ;; If params has :name field, it's from org-mode
           ((and (listp params) (eq (car params) :name))
-           (raindrop-org--parse-dblock-params params))
+           (karakeep-org--parse-dblock-params params))
           ;; If params looks like mixed format
           ((and (listp params) 
                 (keywordp (car params))
                 (not (plist-p params)))
-           (raindrop-org--parse-dblock-params params))
+           (karakeep-org--parse-dblock-params params))
           ;; Normal plist or alist
           (t params))))
     (let ((v (cond
@@ -243,7 +243,7 @@ Handles cases where org-mode passes mixed lists like (:name \"raindrop\" :tags c
                      (ignore-errors (alist-get key parsed-params)))))))
       (if (eq v nil) default v))))
 
-(defun raindrop-org--normalize-match (match)
+(defun karakeep-org--normalize-match (match)
   "Normalize MATCH to the symbol 'all or 'any."
   (cond
    ((memq match '(all any)) match)
@@ -251,14 +251,14 @@ Handles cases where org-mode passes mixed lists like (:name \"raindrop\" :tags c
     (pcase (downcase match) ("any" 'any) (_ 'all)))
    (t 'all)))
 
-(defun raindrop-org--normalize-number (val default)
+(defun karakeep-org--normalize-number (val default)
   "Return numeric VAL or DEFAULT when VAL is not a number-like value."
   (cond
    ((numberp val) val)
    ((and (stringp val) (string-match-p "^[0-9]+$" val)) (string-to-number val))
    (t default)))
 
-(defun raindrop-org--truthy (x)
+(defun karakeep-org--truthy (x)
   "Return non-nil when X represents a true value."
   (cond
    ((eq x t) t)
@@ -267,13 +267,13 @@ Handles cases where org-mode passes mixed lists like (:name \"raindrop\" :tags c
     (member (downcase (string-trim x)) '("t" "true" "yes" "on" "1")))
    (t (not (null x)))))
 
-(defun raindrop-org--find-begin (subtree-end)
-  "Return beginning position of \"#+BEGIN: raindrop\" before SUBTREE-END, or nil."
+(defun karakeep-org--find-begin (subtree-end)
+  "Return beginning position of \"#+BEGIN: karakeep\" before SUBTREE-END, or nil."
   (save-excursion
-    (when (re-search-forward "^#\\+BEGIN: +raindrop\\b" subtree-end t)
+    (when (re-search-forward "^#\\+BEGIN: +karakeep\\b" subtree-end t)
       (match-beginning 0))))
 
-(defun raindrop-org--content-region (block-beg subtree-end)
+(defun karakeep-org--content-region (block-beg subtree-end)
   "Return content region (BEG . END) for block at BLOCK-BEG within SUBTREE-END."
   (save-excursion
     (goto-char block-beg)
@@ -283,7 +283,7 @@ Handles cases where org-mode passes mixed lists like (:name \"raindrop\" :tags c
            (cend (and found-end (match-beginning 0))))
       (and cbeg cend (cons cbeg cend)))))
 
-(defun raindrop-org--insert-skeleton (tags match)
+(defun karakeep-org--insert-skeleton (tags match)
   "Insert an empty dynamic block with TAGS and MATCH at point."
   (let ((tags-string (if tags
                          (mapconcat (lambda (tag)
@@ -292,10 +292,10 @@ Handles cases where org-mode passes mixed lists like (:name \"raindrop\" :tags c
                                         tag))
                                     tags ",")
                        "")))
-    (insert (format "#+BEGIN: raindrop :tags \"%s\" :match %s\n#+END:\n"
+    (insert (format "#+BEGIN: karakeep :tags \"%s\" :match %s\n#+END:\n"
                     tags-string match))))
 
-(defun raindrop-org--replace-content (region text)
+(defun karakeep-org--replace-content (region text)
   "Replace REGION (cons BEG . END) with TEXT and a trailing newline."
   (when (and region (consp region))
     (delete-region (car region) (cdr region))
@@ -303,37 +303,37 @@ Handles cases where org-mode passes mixed lists like (:name \"raindrop\" :tags c
     (insert text)
     (insert "\n")))
 
-(defun raindrop-org--heading-marker ()
+(defun karakeep-org--heading-marker ()
   "Return a buffer position marker for the current heading."
   (save-excursion
     (org-back-to-heading t)
     (point-marker)))
 
-(defun raindrop-org--subtree-end ()
+(defun karakeep-org--subtree-end ()
   "Return end position of the current subtree."
   (save-excursion
     (org-end-of-subtree t t)))
 
-(defun raindrop-org--ensure-block (tags match)
-  "Ensure a raindrop dynamic block exists under current heading.
+(defun karakeep-org--ensure-block (tags match)
+  "Ensure a karakeep dynamic block exists under current heading.
 Return plist with :block-beg, :subtree-end and :region."
   (org-end-of-meta-data t)
   (let* ((beg (point))
-         (subtree-end (raindrop-org--subtree-end))
-         (block-beg (raindrop-org--find-begin subtree-end))
+         (subtree-end (karakeep-org--subtree-end))
+         (block-beg (karakeep-org--find-begin subtree-end))
          region)
     (unless block-beg
       (goto-char beg)
-      (raindrop-org--insert-skeleton tags match)
-      (setq subtree-end (raindrop-org--subtree-end))
+      (karakeep-org--insert-skeleton tags match)
+      (setq subtree-end (karakeep-org--subtree-end))
       (save-excursion
         (goto-char beg)
-        (setq block-beg (raindrop-org--find-begin subtree-end))))
-    (setq region (raindrop-org--content-region block-beg subtree-end))
+        (setq block-beg (karakeep-org--find-begin subtree-end))))
+    (setq region (karakeep-org--content-region block-beg subtree-end))
     (list :block-beg block-beg :subtree-end subtree-end :region region)))
 
-(defun raindrop-org--with-region-at-heading (org-buf heading-marker fn)
-  "Call FN with the content region for the raindrop block at HEADING-MARKER in ORG-BUF."
+(defun karakeep-org--with-region-at-heading (org-buf heading-marker fn)
+  "Call FN with the content region for the karakeep block at HEADING-MARKER in ORG-BUF."
   (when (buffer-live-p org-buf)
     (with-current-buffer org-buf
       (save-restriction
@@ -341,19 +341,19 @@ Return plist with :block-beg, :subtree-end and :region."
         (save-excursion
           (when (and (markerp heading-marker) (marker-position heading-marker))
             (goto-char (marker-position heading-marker)))
-          (let* ((subtree-end (raindrop-org--subtree-end))
-                 (block-beg (raindrop-org--find-begin subtree-end))
-                 (region (and block-beg (raindrop-org--content-region block-beg subtree-end))))
+          (let* ((subtree-end (karakeep-org--subtree-end))
+                 (block-beg (karakeep-org--find-begin subtree-end))
+                 (region (and block-beg (karakeep-org--content-region block-beg subtree-end))))
             (when region (funcall fn region))))))))
 
-(defun raindrop-org--render-result (items err)
+(defun karakeep-org--render-result (items err)
   "Return rendered text for ITEMS or an error ERR."
   (cond
    (err (format "- Error: %s" err))
-   ((null items) raindrop-links-empty-text)
-   (t (raindrop-render-org-list items))))
+   ((null items) karakeep-links-empty-text)
+   (t (karakeep-render-org-list items))))
 
-(defun raindrop-extract-heading-tags ()
+(defun karakeep-extract-heading-tags ()
   "Return a list of tags from the current Org heading, or nil."
   (save-excursion
     (org-back-to-heading t)
@@ -361,43 +361,43 @@ Return plist with :block-beg, :subtree-end and :region."
 
 ;; smart auto-grouping
 
-(defun raindrop-org--norm-tag (tag)
+(defun karakeep-org--norm-tag (tag)
   "Normalize TAG to a lowercased string."
   (downcase (string-trim (format "%s" tag))))
 
-(defun raindrop-org--item-tags-norm (item)
+(defun karakeep-org--item-tags-norm (item)
   "Return a normalized unique tag list for ITEM."
   (let* ((tags (or (plist-get item :tags) (alist-get :tags item))))
-    (seq-uniq (mapcar #'raindrop-org--norm-tag (or tags '())))))
+    (seq-uniq (mapcar #'karakeep-org--norm-tag (or tags '())))))
 
-(defun raindrop-org--tag-frequencies (items)
+(defun karakeep-org--tag-frequencies (items)
   "Return a hash table of tag frequencies across ITEMS."
   (let ((h (make-hash-table :test 'equal)))
     (dolist (it items)
-      (dolist (tg (raindrop-org--item-tags-norm it))
+      (dolist (tg (karakeep-org--item-tags-norm it))
         (puthash tg (1+ (gethash tg h 0)) h)))
     h))
 
-(defun raindrop-org--eligible-tags (freqs &optional exclude-tags exclude-groups)
+(defun karakeep-org--eligible-tags (freqs &optional exclude-tags exclude-groups)
   "Return a list of heading tags from FREQS filtered and sorted by frequency.
 EXCLUDE-TAGS is a list of search tags to exclude from heading selection.
 EXCLUDE-GROUPS is a list of user-specified tags to exclude from grouping."
   (let* ((stop (let ((s (make-hash-table :test 'equal)))
-                 (dolist (stop-tag raindrop-org-smart-stop-tags)
-                   (puthash (raindrop-org--norm-tag stop-tag) t s))
+                 (dolist (stop-tag karakeep-org-smart-stop-tags)
+                   (puthash (karakeep-org--norm-tag stop-tag) t s))
                  ;; Add excluded search tags to stop list
                  (when exclude-tags
                    (dolist (ex-tag exclude-tags)
-                     (puthash (raindrop-org--norm-tag ex-tag) t s)))
+                     (puthash (karakeep-org--norm-tag ex-tag) t s)))
                  ;; Add user-specified exclude groups to stop list  
                  (when exclude-groups
                    (dolist (ex-group exclude-groups)
-                     (puthash (raindrop-org--norm-tag ex-group) t s)))
+                     (puthash (karakeep-org--norm-tag ex-group) t s)))
                  s))
          (all '()))
     (maphash
      (lambda (tag cnt)
-       (when (and (>= cnt raindrop-org-smart-min-count)
+       (when (and (>= cnt karakeep-org-smart-min-count)
                   (not (gethash tag stop)))
          (push (cons tag cnt) all)))
      freqs)
@@ -407,11 +407,11 @@ EXCLUDE-GROUPS is a list of user-specified tags to exclude from grouping."
                          (if (/= (cdr a) (cdr b))
                              (> (cdr a) (cdr b))
                            (string-lessp (car a) (car b)))))
-             raindrop-org-smart-max-groups))))
+             karakeep-org-smart-max-groups))))
 
-(defun raindrop-org--choose-primary-tag (item selected-tags freqs)
+(defun karakeep-org--choose-primary-tag (item selected-tags freqs)
   "Pick primary tag for ITEM among SELECTED-TAGS using FREQS as tie-breaker."
-  (let* ((itags (raindrop-org--item-tags-norm item))
+  (let* ((itags (karakeep-org--item-tags-norm item))
          (cands (seq-filter (lambda (t) (member t selected-tags)) itags)))
     (car (seq-sort
           (lambda (a b)
@@ -423,33 +423,33 @@ EXCLUDE-GROUPS is a list of user-specified tags to exclude from grouping."
                    (seq-position selected-tags b)))))
           cands))))
 
-(defun raindrop-org--capitalize (s)
+(defun karakeep-org--capitalize (s)
   "Capitalize the first character of S."
   (if (and s (> (length s) 0))
       (concat (upcase (substring s 0 1)) (substring s 1))
     s))
 
-(defun raindrop-org--group-items-auto (items &optional exclude-tags exclude-groups)
+(defun karakeep-org--group-items-auto (items &optional exclude-tags exclude-groups)
   "Return an alist of (Heading . items) using frequency-based auto-grouping.
 EXCLUDE-TAGS is a list of search tags to exclude from heading selection.
 EXCLUDE-GROUPS is a list of user-specified tags to exclude from grouping."
-  (let* ((freqs (raindrop-org--tag-frequencies items))
-         (selected (raindrop-org--eligible-tags freqs exclude-tags exclude-groups))
+  (let* ((freqs (karakeep-org--tag-frequencies items))
+         (selected (karakeep-org--eligible-tags freqs exclude-tags exclude-groups))
          (table (make-hash-table :test 'equal)))
     (dolist (tag selected) (puthash tag '() table))
     (puthash "Other" '() table)
     (dolist (it items)
-      (let ((tag (raindrop-org--choose-primary-tag it selected freqs)))
+      (let ((tag (karakeep-org--choose-primary-tag it selected freqs)))
         (puthash (or tag "Other")
                  (cons it (gethash (or tag "Other") table))
                  table)))
     (append
-     (mapcar (lambda (tg) (cons (raindrop-org--capitalize tg)
+     (mapcar (lambda (tg) (cons (karakeep-org--capitalize tg)
                                 (nreverse (gethash tg table))))
              selected)
      (list (cons "Other" (nreverse (gethash "Other" table)))))))
 
-(defun raindrop-org--get-context-heading-level ()
+(defun karakeep-org--get-context-heading-level ()
   "Determine appropriate heading level based on current org context.
 Returns the level that group headings should use."
   (if (and (eq major-mode 'org-mode)
@@ -464,11 +464,11 @@ Returns the level that group headings should use."
           ;; If we found a heading, use next level; otherwise use level 1
           (if (> current-level 0) (1+ current-level) 1)))
     ;; Fallback to configured level for tests and non-org contexts
-    raindrop-org-smart-heading-level))
+    karakeep-org-smart-heading-level))
 
-(defun raindrop-org--render-grouped (grouped)
+(defun karakeep-org--render-grouped (grouped)
   "Render GROUPED (alist of name . items) as headings and lists."
-  (let* ((lvl (raindrop-org--get-context-heading-level))
+  (let* ((lvl (karakeep-org--get-context-heading-level))
          (stars (make-string lvl ?*)))
     (mapconcat
      (lambda (pair)
@@ -476,13 +476,13 @@ Returns the level that group headings should use."
              (items (cdr pair)))
          (when (and items (> (length items) 0))
            (concat stars " " name "\n"
-                   (raindrop-render-org-list items) "\n"))))
+                   (karakeep-render-org-list items) "\n"))))
      grouped "")))
 
 ;; dynamic block
 
-(defun org-dblock-write:raindrop (params)
-  "Writer for the \"raindrop\" dynamic block using PARAMS.
+(defun org-dblock-write:karakeep (params)
+  "Writer for the \"karakeep\" dynamic block using PARAMS.
 Supported formats:
   :tags \"cli,-openai,emacs\"    - comma-separated tags with exclusions
   :folders \"work,personal\"      - comma-separated folders
@@ -492,7 +492,7 @@ Supported formats:
   :limit 20                      - number limit
   :collection 0                  - collection ID
   :smart t                       - enable smart grouping"
-  (raindrop-org--debug "dblock params=%S" params)
+  (karakeep-org--debug "dblock params=%S" params)
   
   (let* ((tags-raw (plist-get params :tags))
          ;; Convert tags to string format
@@ -503,7 +503,7 @@ Supported formats:
                        ((symbolp tags-raw) (symbol-name tags-raw))
                        (t nil)))
          ;; Parse tags and excluded tags
-         (parsed-tags (raindrop-org--parse-tags-string tags-string))
+         (parsed-tags (karakeep-org--parse-tags-string tags-string))
          (tags (plist-get parsed-tags :tags))
          (excluded-tags (plist-get parsed-tags :excluded-tags))
          
@@ -516,7 +516,7 @@ Supported formats:
                            (mapconcat (lambda (x) (format "%s" x)) folders-raw ","))
                           ((symbolp folders-raw) (symbol-name folders-raw))
                           (t nil)))
-         (folders (raindrop-org--parse-folders-string folders-string))
+         (folders (karakeep-org--parse-folders-string folders-string))
          
          ;; Parse search text
          (search-text (plist-get params :search))
@@ -529,21 +529,21 @@ Supported formats:
                                   (mapconcat (lambda (x) (format "%s" x)) exclude-groups-raw ","))
                                  ((symbolp exclude-groups-raw) (symbol-name exclude-groups-raw))
                                  (t nil)))
-         (exclude-groups (raindrop-org--parse-folders-string exclude-groups-string))
+         (exclude-groups (karakeep-org--parse-folders-string exclude-groups-string))
          
          ;; Other parameters - FIX: wrap default value in quotes
-         (match (raindrop-org--normalize-match 
+         (match (karakeep-org--normalize-match 
                  (or (plist-get params :match) 'all)))
-         (collection* (raindrop-org--normalize-number
+         (collection* (karakeep-org--normalize-number
                        (plist-get params :collection)
-                       raindrop-default-collection))
-         (limit (raindrop-org--normalize-number
-                 (or (plist-get params :limit) raindrop-default-limit)
-                 raindrop-default-limit))
-         (smart-raw (or (plist-get params :smart) raindrop-org-smart-grouping-default))
-         (smart-flag (raindrop-org--truthy smart-raw)))
+                       karakeep-default-collection))
+         (limit (karakeep-org--normalize-number
+                 (or (plist-get params :limit) karakeep-default-limit)
+                 karakeep-default-limit))
+         (smart-raw (or (plist-get params :smart) karakeep-org-smart-grouping-default))
+         (smart-flag (karakeep-org--truthy smart-raw)))
     
-    (raindrop-org--debug "parsed: tags=%S excluded-tags=%S folders=%S" 
+    (karakeep-org--debug "parsed: tags=%S excluded-tags=%S folders=%S" 
                          tags excluded-tags folders)
     
     ;; Fetch items
@@ -561,23 +561,23 @@ Supported formats:
                                                (list :folders folders))
                                              (when (and search-text (not (string-empty-p (string-trim search-text))))
                                                (list :search search-text)))))
-                            (raindrop-org--debug "fetch-args=%S" fetch-args)
-                            (apply #'raindrop-fetch fetch-args))
+                            (karakeep-org--debug "fetch-args=%S" fetch-args)
+                            (apply #'karakeep-fetch fetch-args))
                         (error 
-                         (raindrop-org--debug "fetch error=%S" err)
-                         (message "Raindrop fetch error: %s" (error-message-string err))
+                         (karakeep-org--debug "fetch error=%S" err)
+                         (message "Karakeep fetch error: %s" (error-message-string err))
                          nil))
                     '()))
            ;; Render content
            (content
             (cond
              ((or (null items) (equal items '())) 
-              raindrop-links-empty-text)
+              karakeep-links-empty-text)
              (smart-flag
-              (raindrop-org--render-grouped 
-               (raindrop-org--group-items-auto items tags exclude-groups)))
+              (karakeep-org--render-grouped 
+               (karakeep-org--group-items-auto items tags exclude-groups)))
              (t 
-              (raindrop-render-org-list items)))))
+              (karakeep-render-org-list items)))))
       
       ;; Insert content
       (let ((content-beg (point)))
@@ -588,36 +588,36 @@ Supported formats:
         (unless (bolp) (insert "\n"))))))
 
 ;;;###autoload
-(defun raindrop-insert-or-update-links-under-heading (&optional use-any)
-  "Insert or refresh a raindrop dynamic block under the current heading.
+(defun karakeep-insert-or-update-links-under-heading (&optional use-any)
+  "Insert or refresh a karakeep dynamic block under the current heading.
 With optional prefix USE-ANY, use OR semantics for heading tags."
   (interactive "P")
-  (let* ((tags (raindrop-extract-heading-tags))
-         (match (if use-any 'any raindrop-heading-tags-match)))
+  (let* ((tags (karakeep-extract-heading-tags))
+         (match (if use-any 'any karakeep-heading-tags-match)))
     (unless (and tags (> (length tags) 0))
-      (user-error "raindrop-org: Current heading has no tags"))
+      (user-error "karakeep-org: Current heading has no tags"))
     (let* ((org-buf (current-buffer))
-           (heading-marker (raindrop-org--heading-marker))
+           (heading-marker (karakeep-org--heading-marker))
            ;; Convert heading tags to comma-separated format
            (tags-string (mapconcat #'identity tags ",")))
       (save-excursion
         (goto-char (marker-position heading-marker))
-        (let* ((info (raindrop-org--ensure-block tags match)))
-          (raindrop-org--replace-content (plist-get info :region) "- Loading…")))
-      (let* ((parsed (raindrop-org--parse-tags-string tags-string))
+        (let* ((info (karakeep-org--ensure-block tags match)))
+          (karakeep-org--replace-content (plist-get info :region) "- Loading…")))
+      (let* ((parsed (karakeep-org--parse-tags-string tags-string))
              (search-tags (plist-get parsed :tags)))
-        (raindrop-search-bookmarks 
+        (karakeep-search-bookmarks 
          (mapconcat (lambda (tag) (concat "#" tag)) search-tags " ")
          (lambda (items err)
-           (raindrop-org--with-region-at-heading
+           (karakeep-org--with-region-at-heading
             org-buf heading-marker
             (lambda (region)
-              (raindrop-org--replace-content
+              (karakeep-org--replace-content
                region
-               (raindrop-org--render-result items err)))))
-         raindrop-default-limit))
+               (karakeep-org--render-result items err)))))
+         karakeep-default-limit))
       (when (markerp heading-marker) (set-marker heading-marker nil)))))
 
-(provide 'raindrop-org)
+(provide 'karakeep-org)
 
-;;; raindrop-org.el ends here
+;;; karakeep-org.el ends here

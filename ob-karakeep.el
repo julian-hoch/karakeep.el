@@ -1,9 +1,9 @@
-;;; ob-raindrop.el --- Org-babel support for raindrop.el -*- lexical-binding: t; -*-
+;;; ob-karakeep.el --- Org-babel support for karakeep.el -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2025 artawower
 
 ;; Author: artawower <artawower33@gmail.com>
-;; URL: https://github.com/artawower/raindrop.el
+;; URL: https://github.com/julian-hoch/karakeep.el
 ;; Package-Requires: ((emacs "27.1") (org "9.4"))
 ;; Version: 0.1.0
 ;; Keywords: convenience, outlines, hyperlinks
@@ -22,39 +22,39 @@
 ;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 ;;; Commentary:
-;; Org-babel `raindrop` language: returns Org-formatted output suitable for
+;; Org-babel `karakeep` language: returns Org-formatted output suitable for
 ;; :results raw replace. Parameters mirror dynamic block params.
 
 ;;; Code:
 
 (require 'org)
 (require 'ob)
-(require 'raindrop)
-(require 'raindrop-org)
+(require 'karakeep)
+(require 'karakeep-org)
 
-(defvar org-babel-default-header-args:raindrop
+(defvar org-babel-default-header-args:karakeep
   '((:results . "raw replace") (:output . org-list))
-  "Default header args for raindrop babel blocks.")
+  "Default header args for karakeep babel blocks.")
 
-(defun raindrop-ob--param (key params default)
+(defun karakeep-ob--param (key params default)
   "Return value for KEY from PARAMS or DEFAULT if not set or empty."
   (let ((v (alist-get key params nil nil #'eq)))
     (if (and v (not (equal v ""))) v default)))
 
-(defun raindrop-ob--items (params)
-  "Return fetched Raindrop items based on PARAMS."
-  (let* ((tags-input (raindrop-ob--param :tags params nil))
-         (parsed-tags (raindrop-parse-tags-with-exclusion tags-input))
+(defun karakeep-ob--items (params)
+  "Return fetched Karakeep items based on PARAMS."
+  (let* ((tags-input (karakeep-ob--param :tags params nil))
+         (parsed-tags (karakeep-parse-tags-with-exclusion tags-input))
          (tags (plist-get parsed-tags :tags))
          (excluded-tags (plist-get parsed-tags :excluded-tags))
-         (search-text (raindrop-ob--param :search params nil))
-         (match (or (raindrop-ob--param :match params 'all) 'all))
-         (limit (or (raindrop-ob--param :limit params raindrop-default-limit)
-                    raindrop-default-limit))
-         (collection (or (raindrop-ob--param :collection params raindrop-default-collection)
-                         raindrop-default-collection)))
+         (search-text (karakeep-ob--param :search params nil))
+         (match (or (karakeep-ob--param :match params 'all) 'all))
+         (limit (or (karakeep-ob--param :limit params karakeep-default-limit)
+                    karakeep-default-limit))
+         (collection (or (karakeep-ob--param :collection params karakeep-default-collection)
+                         karakeep-default-collection)))
     (if (or tags excluded-tags search-text)
-        (apply #'raindrop-fetch
+        (apply #'karakeep-fetch
                (append (list :match match :limit limit :collection collection)
                        (when tags (list :tags tags))
                        (when excluded-tags (list :excluded-tags excluded-tags))
@@ -62,19 +62,19 @@
                          (list :search search-text))))
       '())))
 
-(defun raindrop-ob--render (items output)
+(defun karakeep-ob--render (items output)
   "Render ITEMS according to OUTPUT format."
   (pcase output
-    ('org-list (if (null items) "- No results" (raindrop-render-org-list items)))
-    (_ (user-error "ob-raindrop: Unsupported :output %S" output))))
+    ('org-list (if (null items) "- No results" (karakeep-render-org-list items)))
+    (_ (user-error "ob-karakeep: Unsupported :output %S" output))))
 
 ;;;###autoload
-(defun org-babel-execute:raindrop (_body params)
-  "Execute a Raindrop org-babel block with PARAMS."
-  (let* ((output (or (raindrop-ob--param :output params 'org-list) 'org-list))
-         (items (raindrop-ob--items params)))
-    (raindrop-ob--render items output)))
+(defun org-babel-execute:karakeep (_body params)
+  "Execute a Karakeep org-babel block with PARAMS."
+  (let* ((output (or (karakeep-ob--param :output params 'org-list) 'org-list))
+         (items (karakeep-ob--items params)))
+    (karakeep-ob--render items output)))
 
-(provide 'ob-raindrop)
+(provide 'ob-karakeep)
 
-;;; ob-raindrop.el ends here
+;;; ob-karakeep.el ends here
