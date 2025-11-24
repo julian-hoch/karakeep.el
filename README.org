@@ -1,8 +1,8 @@
 :PROPERTIES:
-:ID:       raindrop.el
+:ID:       karakeep.el
 :END:
 
-#+TITLE: ✨ raindrop.el — Raindrop → Org-mode
+#+TITLE: ✨ karakeep.el — Karakeep → Org-mode
 
 #+html: <div align='center'>
 #+html: <span class='badge-buymeacoffee'>
@@ -11,21 +11,21 @@
 #+html: <span class='badge-patreon'>
 #+html: <a href='https://patreon.com/artawower' target='_blank' title='Donate to this project using Patreon'><img src='https://img.shields.io/badge/patreon-donate-orange.svg' alt='Patreon donate button' /></a>
 #+html: </span>
-#+html: <a href='https://wakatime.com/badge/github/Artawower/raindrop.el'><img src='https://wakatime.com/badge/github/Artawower/raindrop.el.svg' alt='wakatime'></a>
+#+html: <a href='https://wakatime.com/badge/github/julian-hoch/karakeep.el'><img src='https://wakatime.com/badge/github/julian-hoch/karakeep.el.svg' alt='wakatime'></a>
 #+html: </div>
 #+html: <div align='center' style='margin-top:6px;'>
-#+html: <a href='https://github.com/Artawower/raindrop.el/actions/workflows/ci.yml'>
-#+html: <img src='https://github.com/Artawower/raindrop.el/actions/workflows/ci.yml/badge.svg' alt='CI Status'>
+#+html: <a href='https://github.com/julian-hoch/karakeep.el/actions/workflows/ci.yml'>
+#+html: <img src='https://github.com/julian-hoch/karakeep.el/actions/workflows/ci.yml/badge.svg' alt='CI Status'>
 #+html: </a>
 #+html: </div>
 
 * Introduction
-Integrate your [[https://raindrop.io][Raindrop]] bookmarks into Org-mode.
+Integrate bookmarks from your locally hosted Karakeep instance into Org-mode.
 
 This package provides:
-- A dynamic block =#+BEGIN: raindrop ... #+END:= that renders a list of links.
+- A dynamic block =#+BEGIN: karakeep ... #+END:= that renders a list of links.
 - A helper command to use current heading tags to insert/update a links list.
-- An Org-babel language =raindrop= that returns Org-formatted lists.
+- An Org-babel language =karakeep= that returns Org-formatted lists.
 - An interactive search interface with as-you-type completion and animated spinner.
 
 This is an AI-assisted Emacs package, created in collaboration with a large
@@ -33,8 +33,8 @@ language model (OpenAI). Requirements and vision were provided by the author.
 
 * Connected links
 - [[https://orgmode.org][Org Mode Documentation]]
-- [[https://developer.raindrop.io][Raindrop API Documentation]]
-- [[https://raindrop.io][Raindrop service]]
+- [[https://developer.karakeep.io][Karakeep API Documentation]]
+- [[https://karakeep.io][Karakeep service]]
 
 * Screenshots
 Search interface
@@ -47,73 +47,76 @@ This package requires Emacs 27.1+ and Org 9.4+.
 
 ** Elpaca
 #+BEGIN_SRC emacs-lisp :results silent
-(use-package raindrop
+(use-package karakeep
   :defer t
-  :ensure (raindrop :host github :repo "artawower/raindrop.el"))
+  :ensure (karakeep :host github :repo "julian-hoch/karakeep.el"))
 #+END_SRC
 
 Org integration
 #+BEGIN_SRC emacs-lisp :results silent
-(use-package raindrop-org
-  :after raindrop
+(use-package karakeep-org
+  :after karakeep
   :ensure nil
   :defer t)
 #+END_SRC
 
-Raindrop search
+Karakeep search
 #+BEGIN_SRC emacs-lisp :results silent
-(use-package raindrop-search
+(use-package karakeep-search
   :ensure nil
-  :after raindrop
-  :bind (("C-c r s" . raindrop-search))
+  :after karakeep
+  :bind (("C-c r s" . karakeep-search))
   :defer t)
 #+END_SRC
 
-Ob raindrop (dynamic block)
+Ob karakeep (dynamic block)
 #+BEGIN_SRC emacs-lisp :results silent
-(use-package ob-raindrop
-  :after (org raindrop)
-  :commands (org-babel-execute:raindrop)
+(use-package ob-karakeep
+  :after (org karakeep)
+  :commands (org-babel-execute:karakeep)
   :ensure nil
   :init
   (with-eval-after-load 'org
-    (add-to-list 'org-babel-load-languages '(raindrop . t))
+    (add-to-list 'org-babel-load-languages '(karakeep . t))
     (when (boundp 'org-babel-load-languages)
       (org-babel-do-load-languages 'org-babel-load-languages org-babel-load-languages))))
 #+END_SRC
 
 ** package-vc (Emacs 29+)
 #+BEGIN_SRC emacs-lisp
-(package-vc-install '(raindrop :url "https://github.com/artawower/raindrop.el"))
+(package-vc-install '(karakeep :url "https://github.com/julian-hoch/karakeep.el"))
 
-(use-package raindrop)
-(use-package raindrop-org :after org)
-(use-package raindrop-search)
-(use-package ob-raindrop :after org)
+(use-package karakeep)
+(use-package karakeep-org :after org)
+(use-package karakeep-search)
+(use-package ob-karakeep :after org)
 #+END_SRC
 
 * Setup (Token)
+Karakeep is assumed to be running locally (default =http://localhost:8000/api=).
+Adjust =karakeep-api-base= if your instance listens elsewhere.
+
 For security, prefer [[https://www.gnu.org/software/emacs/manual/html_node/auth/][auth-source]]:
-- Create an entry: =machine raindrop.io login token secret <YOUR_TOKEN>=.
-- Alternatively export env var =RAINDROP_TOKEN=. You can also set
-  =raindrop-custom-token=, but this is less secure.
+- Create an entry: =machine karakeep.local login token secret <YOUR_TOKEN>= (or =localhost=).
+- Alternatively export env var =KARAKEEP_TOKEN=. You can also set
+  =karakeep-custom-token=, but this is less secure.
 
 Example auth-source entry for =.authinfo.gpg=:
 #+BEGIN_EXAMPLE
-machine raindrop.io login token password 0123456789abcdef
+machine karakeep.local login token password 0123456789abcdef
 #+END_EXAMPLE
 
 * Usage
 Load packages (autoloads are simple; explicit require is fine):
 #+BEGIN_SRC emacs-lisp
-(require 'raindrop)
-(require 'raindrop-org)
-(require 'raindrop-search)
-(require 'ob-raindrop)
+(require 'karakeep)
+(require 'karakeep-org)
+(require 'karakeep-search)
+(require 'ob-karakeep)
 #+END_SRC
 
 ** Interactive Search Interface
-Use =M-x raindrop-search= for an interactive search with as-you-type completion:
+Use =M-x karakeep-search= for an interactive search with as-you-type completion:
 - Search by tags: =#emacs #lisp some text=
 - Tags with spaces: =#\"disk usage\" #\"file manager\" backup tools=
 - Exclude tags: =#emacs -#outdated= (include emacs, exclude outdated)  
@@ -127,30 +130,30 @@ Use =M-x raindrop-search= for an interactive search with as-you-type completion:
 
 Features:
 - Press =RET= to open the selected bookmark in your browser
-- Use =M-x raindrop-search-toggle-enter-action= to toggle between opening the original link and the Raindrop app URL
+- Use =M-x karakeep-search-toggle-enter-action= to toggle between opening the original link and the Karakeep app URL
 - Embark integration for additional actions (edit, delete, open in different ways)
 
 Embark Actions (when using Embark):
 - =o=: Open original link
-- =O=: Open in Raindrop app
+- =O=: Open in Karakeep app
 - =e=: Edit bookmark in dedicated buffer
 - =D=: Delete bookmark (with confirmation)
 - =c=: Create new bookmark (from clipboard/browser)
 - =C=: Create bookmark from URL in kill ring
 
 Customization:
-- =raindrop-search-idle-delay=: delay before API request (default 0.25s)
-- =raindrop-search-page-size=: number of results per page (default 50)
-- =raindrop-search-spinner-frames=: spinner animation frames
-- =raindrop-search-spinner-delay=: spinner animation speed
-- =raindrop-search-title-max= / =raindrop-search-excerpt-max=: truncation limits
+- =karakeep-search-idle-delay=: delay before API request (default 0.25s)
+- =karakeep-search-page-size=: number of results per page (default 50)
+- =karakeep-search-spinner-frames=: spinner animation frames
+- =karakeep-search-spinner-delay=: spinner animation speed
+- =karakeep-search-title-max= / =karakeep-search-excerpt-max=: truncation limits
 
 ** Creating Bookmarks
 Create new bookmarks directly from Emacs using these functions:
 
-- =M-x raindrop-search-create-bookmark=: Create bookmark from any URL
-- =M-x raindrop-search-create-from-browser=: Create from clipboard (browser URL)
-- =M-x raindrop-search-create-from-kill-ring=: Create from URL in kill ring
+- =M-x karakeep-search-create-bookmark=: Create bookmark from any URL
+- =M-x karakeep-search-create-from-browser=: Create from clipboard (browser URL)
+- =M-x karakeep-search-create-from-kill-ring=: Create from URL in kill ring
 
 All creation functions open an edit buffer where you can:
 - Set the title and description
@@ -168,7 +171,7 @@ Add tags to a heading, e.g.:
 
 Then run:
 #+BEGIN_EXAMPLE
-M-x raindrop-insert-or-update-links-under-heading
+M-x karakeep-insert-or-update-links-under-heading
 #+END_EXAMPLE
 
 This inserts (or updates) a dynamic block directly in the body of that node,
@@ -177,13 +180,13 @@ rendering an Org bullet list in the form:
 - [[https://example.com][Title]] — optional excerpt
 #+END_EXAMPLE
 
-Tip: Use =C-u M-x raindrop-insert-or-update-links-under-heading= to switch to
+Tip: Use =C-u M-x karakeep-insert-or-update-links-under-heading= to switch to
 OR semantics for tags just for this run; default is AND.
 
 ** Dynamic block (manual)
 You can insert a block yourself and refresh with =C-c C-c=:
 #+BEGIN_EXAMPLE
-#+BEGIN: raindrop :tags "emacs, -outdated, programming" :match all :limit 50
+#+BEGIN: karakeep :tags "emacs, -outdated, programming" :match all :limit 50
 #+END:
 #+END_EXAMPLE
 
@@ -206,84 +209,84 @@ Parameters:
 Examples:
 - By folder only:
   #+BEGIN_EXAMPLE
-  #+BEGIN: raindrop :folders "Terminal" :match all :limit 20
+  #+BEGIN: karakeep :folders "Terminal" :match all :limit 20
   #+END:
   #+END_EXAMPLE
 - Tags within a folder:
   #+BEGIN_EXAMPLE
-  #+BEGIN: raindrop :folders "Work" :tags "cli, -legacy" :match any :limit 30
+  #+BEGIN: karakeep :folders "Work" :tags "cli, -legacy" :match any :limit 30
   #+END:
   #+END_EXAMPLE
 - With tag exclusion and smart grouping:
   #+BEGIN_EXAMPLE
-  #+BEGIN: raindrop :tags "emacs, -outdated, programming" :match all :limit 25 :smart t
+  #+BEGIN: karakeep :tags "emacs, -outdated, programming" :match all :limit 25 :smart t
   #+END:
   #+END_EXAMPLE
 - Tags with spaces and exclusions:
   #+BEGIN_EXAMPLE
-  #+BEGIN: raindrop :tags "cli, -openai, -tui with space" :match all :output org-list :smart t
+  #+BEGIN: karakeep :tags "cli, -openai, -tui with space" :match all :output org-list :smart t
   #+END:
   #+END_EXAMPLE
 - Text search with tags:
   #+BEGIN_EXAMPLE
-  #+BEGIN: raindrop :search "machine learning" :tags "python, ai" :match any :limit 20
+  #+BEGIN: karakeep :search "machine learning" :tags "python, ai" :match any :limit 20
   #+END:
   #+END_EXAMPLE
 - Text search only:
   #+BEGIN_EXAMPLE
-  #+BEGIN: raindrop :search "productivity tools" :limit 15 :smart t
+  #+BEGIN: karakeep :search "productivity tools" :limit 15 :smart t
   #+END:
   #+END_EXAMPLE
 - Smart grouping with excluded groups:
   #+BEGIN_EXAMPLE
-  #+BEGIN: raindrop :tags "emacs" :exclude-groups "cli, terminal" :smart t :limit 20
+  #+BEGIN: karakeep :tags "emacs" :exclude-groups "cli, terminal" :smart t :limit 20
   #+END:
   #+END_EXAMPLE
 
 ** Org-babel block
 Returns Org-formatted output; use =:results raw replace=:
-#+BEGIN_SRC raindrop :tags "emacs, -outdated, programming" :match all :limit 30 :results raw replace
+#+BEGIN_SRC karakeep :tags "emacs, -outdated, programming" :match all :limit 30 :results raw replace
 #+END_SRC
 
 Also works with folders:
-#+BEGIN_SRC raindrop :folders "Terminal, Work" :match all :limit 20 :results raw replace
+#+BEGIN_SRC karakeep :folders "Terminal, Work" :match all :limit 20 :results raw replace
 #+END_SRC
 
 With tag exclusion and tags with spaces:
-#+BEGIN_SRC raindrop :tags "cli, -windows, -system admin" :match all :limit 15 :results raw replace
+#+BEGIN_SRC karakeep :tags "cli, -windows, -system admin" :match all :limit 15 :results raw replace
 #+END_SRC
 
 Space-separated format also supported:
-#+BEGIN_SRC raindrop :tags "cli -openai macos" :match all :limit 15 :results raw replace
+#+BEGIN_SRC karakeep :tags "cli -openai macos" :match all :limit 15 :results raw replace
 #+END_SRC
 
 With text search:
-#+BEGIN_SRC raindrop :search "productivity" :tags "emacs" :match any :limit 10 :results raw replace
+#+BEGIN_SRC karakeep :search "productivity" :tags "emacs" :match any :limit 10 :results raw replace
 #+END_SRC
 
 Text search only:
-#+BEGIN_SRC raindrop :search "artificial intelligence" :limit 20 :results raw replace
+#+BEGIN_SRC karakeep :search "artificial intelligence" :limit 20 :results raw replace
 #+END_SRC
 
 You can also enable via babel languages API:
 #+BEGIN_SRC emacs-lisp
 (with-eval-after-load 'org
-  (require 'ob-raindrop))
+  (require 'ob-karakeep))
 #+END_SRC
 
 * Customization
-- =raindrop-request-timeout=: request timeout (seconds).
-- =raindrop-default-limit=: default fetch limit.
-- =raindrop-auth-source-host=: host to look up in auth-source.
-- =raindrop-token-source=: order of token sources (auth-source/env/custom).
-- =raindrop-links-empty-text=: text when no results.
-- =raindrop-heading-tags-match=: default AND/OR for heading tags.
+- =karakeep-request-timeout=: request timeout (seconds).
+- =karakeep-default-limit=: default fetch limit.
+- =karakeep-auth-source-host=: host to look up in auth-source.
+- =karakeep-token-source=: order of token sources (auth-source/env/custom).
+- =karakeep-links-empty-text=: text when no results.
+- =karakeep-heading-tags-match=: default AND/OR for heading tags.
 
 * Notes
 - Backend uses =request.el= for HTTP requests and =json-parse-buffer= for JSON parsing.
 - Content is inserted idempotently inside a dynamic block.
 - Title/excerpt are sanitized for single-line list items.
-- Interactive search supports vector-to-list conversion for Raindrop API responses.
+- Interactive search supports vector-to-list conversion for Karakeep API responses.
 
 * 🍩 Contribute guide
 Any contribution is welcome!
@@ -308,17 +311,17 @@ This project uses ERT tests located under =test/=.
 
 Useful variants:
 - Verbose with backtraces: =eldev -dtT test=
-- Select specific tests: =eldev test :selector '"raindrop-parse-tags"'=
+- Select specific tests: =eldev test :selector '"karakeep-parse-tags"'=
 
 ** Run with plain Emacs (no Eldev)
 From the project root:
 #+BEGIN_SRC shell
 emacs -Q --batch -L . \
-  -l raindrop.el -l raindrop-org.el \
-  -l test/raindrop-core-tests.el \
+  -l karakeep.el -l karakeep-org.el \
+  -l test/karakeep-core-tests.el \
   -f ert-run-tests-batch-and-exit
 #+END_SRC
 
 Notes:
-- Tests are self-contained and do not require a Raindrop token; they do not hit the network.
+- Tests are self-contained and do not require a Karakeep token; they do not hit the network.
 - Tests automatically handle the =request.el= dependency via Eldev configuration.

@@ -1,9 +1,9 @@
-;;; raindrop.el --- Raindrop → Org integration -*- lexical-binding: t; -*-
+;;; karakeep.el --- Karakeep → Org integration -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2025 artawower
 
 ;; Author: artawower <artawower33@gmail.com>
-;; URL: https://github.com/artawower/raindrop.el
+;; URL: https://github.com/julian-hoch/karakeep.el
 ;; Package-Requires: ((emacs "27.1") (org "9.4") (request "0.3.0"))
 ;; Version: 0.1.0
 ;; Keywords: convenience, outlines, hyperlinks
@@ -22,7 +22,7 @@
 ;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 ;;; Commentary:
-;; Raindrop → Org integration utilities and API client.
+;; Karakeep → Org integration utilities and API client.
 ;; - url.el-based client with Bearer token.
 ;; - Fetch bookmarks by tags/collection with basic pagination (one page by default).
 ;; - Shared utilities for renderers and org integrations.
@@ -37,91 +37,91 @@
 (require 'rx)
 (require 'cl-lib)
 
-(defgroup raindrop nil
-  "Raindrop → Org integration."
+(defgroup karakeep nil
+  "Karakeep → Org integration."
   :group 'convenience)
 
-(defcustom raindrop-debug nil
-  "Enable debug messages for raindrop operations."
+(defcustom karakeep-debug nil
+  "Enable debug messages for karakeep operations."
   :type 'boolean
-  :group 'raindrop)
+  :group 'karakeep)
 
-(defcustom raindrop-api-base "https://api.raindrop.io/rest/v1"
-  "Base URL for Raindrop REST API."
+(defcustom karakeep-api-base "http://localhost:8000/api"
+  "Base URL for the locally hosted Karakeep REST API."
   :type 'string
-  :group 'raindrop)
+  :group 'karakeep)
 
-(defcustom raindrop-auth-source-host "raindrop.io"
+(defcustom karakeep-auth-source-host "karakeep.local"
   "DEPRECATED: single host name used in auth-source lookup.
-Prefer `raindrop-auth-source-hosts`. Still used for backward compatibility."
+Prefer `karakeep-auth-source-hosts`. Still used for backward compatibility."
   :type 'string
-  :group 'raindrop)
+  :group 'karakeep)
 
-(defcustom raindrop-auth-source-hosts '("raindrop.io" "api.raindrop.io")
+(defcustom karakeep-auth-source-hosts '("karakeep.local" "localhost")
   "Host names used in auth-source to look up the token.
-Both plain domain and API subdomain are tried in order."
+Local Karakeep deployments often use localhost-based endpoints; both are tried in order."
   :type '(repeat string)
-  :group 'raindrop)
+  :group 'karakeep)
 
-(defcustom raindrop-token-source '(auth-source env custom)
-  "Ordered sources to retrieve Raindrop token from.
-Supported: `auth-source', `env' (RAINDROP_TOKEN), and `custom'."
+(defcustom karakeep-token-source '(auth-source env custom)
+  "Ordered sources to retrieve Karakeep token from.
+Supported: `auth-source', `env' (KARAKEEP_TOKEN), and `custom'."
   :type '(repeat (choice (const auth-source) (const env) (const custom)))
-  :group 'raindrop)
+  :group 'karakeep)
 
-(defcustom raindrop-custom-token nil
-  "Custom token value if `raindrop-token-source' includes `custom'.
+(defcustom karakeep-custom-token nil
+  "Custom token value if `karakeep-token-source' includes `custom'.
 Avoid storing secrets in plain files; prefer auth-source."
   :type '(choice (const :tag "Unset" nil) (string :tag "Token"))
-  :group 'raindrop)
+  :group 'karakeep)
 
-(defcustom raindrop-request-timeout 15
+(defcustom karakeep-request-timeout 15
   "Timeout in seconds for API requests."
   :type 'integer
-  :group 'raindrop)
+  :group 'karakeep)
 
-(defcustom raindrop-default-limit 100
+(defcustom karakeep-default-limit 100
   "Default maximum number of items to fetch (single page up to 100)."
   :type 'integer
-  :group 'raindrop)
+  :group 'karakeep)
 
-(defcustom raindrop-default-collection 0
+(defcustom karakeep-default-collection 0
   "Default collection ID used for queries.
-Per the Raindrop spec, collectionId=0 means “all collections”. For default
+Per the Karakeep spec, collectionId=0 means “all collections”. For default
 behavior we treat 0 as “all”. Set a concrete numeric ID to query a single
 collection."
   :type 'integer
-  :group 'raindrop)
+  :group 'karakeep)
 
-(defcustom raindrop-debug-enable t
+(defcustom karakeep-debug-enable t
   "Enable verbose debug messages for HTTP requests."
   :type 'boolean
-  :group 'raindrop)
+  :group 'karakeep)
 
-(defconst raindrop--user-agent
-  "raindrop.el/0.1.0 (+https://github.com/artawower/raindrop.el)"
-  "User-Agent header for Raindrop requests.")
+(defconst karakeep--user-agent
+  "karakeep.el/0.1.0 (+https://github.com/julian-hoch/karakeep.el)"
+  "User-Agent header for Karakeep requests.")
 
-(defvar raindrop--collections-cache nil
+(defvar karakeep--collections-cache nil
   "Cached list of collections as returned by `/collections` (value of 'items).")
 
-(defvar raindrop--tags-cache nil
+(defvar karakeep--tags-cache nil
   "Cached list of tags as returned by `/tags` (value of 'items).")
 
-(defvar raindrop--tags-loading nil
+(defvar karakeep--tags-loading nil
   "Flag indicating if tags are currently being loaded.")
 
-(defvar raindrop--tags-ready nil
+(defvar karakeep--tags-ready nil
   "Flag indicating if tags have been loaded and cached.")
 
 ;;;; Small helpers (pure where possible)
 
-(defun raindrop--debug (fmt &rest args)
-  "Log debug message if `raindrop-debug' is enabled."
-  (when raindrop-debug
-    (message "raindrop.el: %s" (apply #'format fmt args))))
+(defun karakeep--debug (fmt &rest args)
+  "Log debug message if `karakeep-debug' is enabled."
+  (when karakeep-debug
+    (message "karakeep.el: %s" (apply #'format fmt args))))
 
-(defun raindrop--mask (s)
+(defun karakeep--mask (s)
   "Return masked version of secret string S for logs."
   (when (stringp s)
     (let ((n (length s)))
@@ -129,11 +129,11 @@ collection."
        ((<= n 6) "******")
        (t (concat (substring s 0 3) (make-string (- n 6) ?*) (substring s (- n 3))))))))
 
-(defun raindrop--get-token-from-auth-source ()
+(defun karakeep--get-token-from-auth-source ()
   "Retrieve token from auth-source using configured hosts."
-  (let* ((hosts (append (and (listp raindrop-auth-source-hosts)
-                             raindrop-auth-source-hosts)
-                        (list raindrop-auth-source-host)))
+  (let* ((hosts (append (and (listp karakeep-auth-source-hosts)
+                             karakeep-auth-source-hosts)
+                        (list karakeep-auth-source-host)))
          token)
     (catch 'got
       (dolist (h hosts)
@@ -146,27 +146,27 @@ collection."
             (throw 'got token))))
       nil)))
 
-(defun raindrop--get-token ()
-  "Resolve Raindrop token according to `raindrop-token-source'."
+(defun karakeep--get-token ()
+  "Resolve Karakeep token according to `karakeep-token-source'."
   (catch 'done
-    (dolist (src raindrop-token-source)
+    (dolist (src karakeep-token-source)
       (pcase src
         ('auth-source
-         (let ((tok (raindrop--get-token-from-auth-source)))
+         (let ((tok (karakeep--get-token-from-auth-source)))
            (when (and tok (stringp tok) (> (length tok) 0))
              (throw 'done tok))))
         ('env
-         (let ((tok (getenv "RAINDROP_TOKEN")))
+         (let ((tok (getenv "KARAKEEP_TOKEN")))
            (when (and tok (stringp tok) (> (length tok) 0))
              (throw 'done tok))))
         ('custom
-         (when (and raindrop-custom-token
-                    (stringp raindrop-custom-token)
-                    (> (length raindrop-custom-token) 0))
-           (throw 'done raindrop-custom-token)))))
-    (user-error "raindrop.el: Token not found. Configure auth-source or RAINDROP_TOKEN.")))
+         (when (and karakeep-custom-token
+                    (stringp karakeep-custom-token)
+                    (> (length karakeep-custom-token) 0))
+           (throw 'done karakeep-custom-token)))))
+    (user-error "karakeep.el: Token not found. Configure auth-source or KARAKEEP_TOKEN.")))
 
-(defun raindrop-parse-tags (tags)
+(defun karakeep-parse-tags (tags)
   "Normalize TAGS param to a list of strings.
 Accepts list of symbols/strings or a string. The string form supports:
 - Comma-separated values: tag1, tag2
@@ -202,11 +202,11 @@ Prefer quoting for tags containing spaces or commas."
         (nreverse out))))
    (t (list (format "%s" tags)))))
 
-(defun raindrop-parse-tags-with-exclusion (tags)
+(defun karakeep-parse-tags-with-exclusion (tags)
   "Parse TAGS into included and excluded tags.
 Supports '-tag' syntax for exclusion in string form.
 Returns plist with :tags and :excluded-tags keys."
-  (let ((parsed-tags (raindrop-parse-tags tags)))
+  (let ((parsed-tags (karakeep-parse-tags tags)))
     (if (not (stringp tags))
         ;; For non-string input, no exclusion syntax
         (list :tags parsed-tags :excluded-tags nil)
@@ -220,8 +220,8 @@ Returns plist with :tags and :excluded-tags keys."
         (list :tags (nreverse included) 
               :excluded-tags (nreverse excluded))))))
 
-;; replace the existing raindrop-parse-folders with this version
-(defun raindrop-parse-folders (folders)
+;; replace the existing karakeep-parse-folders with this version
+(defun karakeep-parse-folders (folders)
   "Normalize FOLDERS to a list of strings.
 A single string is preserved verbatim (even if it contains spaces).
 If the string contains commas, it is split on commas with quote support.
@@ -236,11 +236,11 @@ A list is normalized element-wise."
       (cond
        ((string-empty-p s) nil)
        ((string-match-p "," s)
-        (raindrop-parse-tags s))
+        (karakeep-parse-tags s))
        (t (list s)))))
    (t (list (format "%s" folders)))))
 
-(defun raindrop--build-query (params)
+(defun karakeep--build-query (params)
   "Build URL query string from PARAMS alist ((key . value) ...)."
   (mapconcat (lambda (kv)
                (format "%s=%s"
@@ -249,44 +249,41 @@ A list is normalized element-wise."
              (seq-filter (lambda (kv) (cdr kv)) params)
              "&"))
 
-(defun raindrop--url (endpoint &optional query-alist)
+(defun karakeep--url (endpoint &optional query-alist)
   "Compose full URL for ENDPOINT with QUERY-ALIST."
-  (concat (replace-regexp-in-string "/$" "" raindrop-api-base)
+  (concat (replace-regexp-in-string "/$" "" karakeep-api-base)
           (if (string-prefix-p "/" endpoint) endpoint (concat "/" endpoint))
           (when query-alist
-            (concat "?" (raindrop--build-query query-alist)))))
+            (concat "?" (karakeep--build-query query-alist)))))
 
-(defun raindrop--collection-endpoint (collection)
+(defun karakeep--collection-endpoint (collection)
   "Return the base endpoint for listing by COLLECTION."
   (let* ((id (cond
               ((numberp collection) collection)
-              ((or (eq collection 'all) (eq collection :all) (null collection)) raindrop-default-collection)
-              (t raindrop-default-collection))))
-    (format "/raindrops/%s" (if (<= id 0) 0 id))))
+              ((or (eq collection 'all) (eq collection :all) (null collection)) karakeep-default-collection)
+              (t karakeep-default-collection))))
+    (if (<= id 0)
+        "/bookmarks"
+      (format "/collections/%s/bookmarks" id))))
 
-(defun raindrop--endpoint-for (collection search-present)
+(defun karakeep--endpoint-for (collection search-present)
   "Pick the correct endpoint given COLLECTION and SEARCH-PRESENT."
-  (let* ((id (cond
-              ((numberp collection) collection)
-              ((or (eq collection 'all) (eq collection :all) (null collection)) raindrop-default-collection)
-              (t raindrop-default-collection))))
-    (if (and search-present (<= id 0))
-        "/raindrops"
-      (format "/raindrops/%s" (if (<= id 0) 0 id)))))
+  (ignore search-present)
+  (karakeep--collection-endpoint collection))
 
-(defun raindrop--collections-list ()
+(defun karakeep--collections-list ()
   "Return and cache the list of user's collections (list of alists)."
-  (or raindrop--collections-cache
-      (let* ((payload (raindrop-collections))
+  (or karakeep--collections-cache
+      (let* ((payload (karakeep-collections))
              (items (or (alist-get 'items payload)
                         (alist-get 'collections payload)
                         nil)))
-        (setq raindrop--collections-cache (and (listp items) items))
-        raindrop--collections-cache)))
+        (setq karakeep--collections-cache (and (listp items) items))
+        karakeep--collections-cache)))
 
-(defun raindrop--resolve-collection-id (folder-name)
+(defun karakeep--resolve-collection-id (folder-name)
   (let* ((name (if (symbolp folder-name) (symbol-name folder-name) folder-name))
-         (items (raindrop--collections-list))
+         (items (karakeep--collections-list))
          (match (seq-find (lambda (it)
                             (let ((title (alist-get 'title it)))
                               (and (stringp title)
@@ -297,11 +294,11 @@ A list is normalized element-wise."
 
 ;;;; Request-based HTTP implementation
 
-(defun raindrop--make-headers (method)
+(defun karakeep--make-headers (method)
   "Return an alist of HTTP headers for METHOD."
-  (let ((headers `(("Authorization" . ,(concat "Bearer " (raindrop--get-token)))
+  (let ((headers `(("Authorization" . ,(concat "Bearer " (karakeep--get-token)))
                    ("Accept" . "application/json")
-                   ("User-Agent" . ,raindrop--user-agent))))
+                   ("User-Agent" . ,karakeep--user-agent))))
     (if (eq method 'GET)
         headers
       (append headers '(("Content-Type" . "application/json"))))))
@@ -309,20 +306,20 @@ A list is normalized element-wise."
 
 ;;;; Request-based HTTP primitives
 
-(defun raindrop-api-request (endpoint &optional method query-alist data)
-  "Perform HTTP request to Raindrop API (synchronous).
+(defun karakeep-api-request (endpoint &optional method query-alist data)
+  "Perform HTTP request to Karakeep API (synchronous).
 Return parsed JSON as alist. Signal `user-error` for HTTP or parse errors."
   (let* ((method (or method 'GET))
-         (url (concat raindrop-api-base endpoint))
-         (token (raindrop--get-token))
+         (url (concat karakeep-api-base endpoint))
+         (token (karakeep--get-token))
          (headers `(("Authorization" . ,(concat "Bearer " token))
                     ("Content-Type" . "application/json")))
          (json-data (when data (json-encode data)))
          (type (pcase method ('GET "GET") ('PUT "PUT") ('POST "POST") ('DELETE "DELETE") (_ "GET")))
          (result-data nil)
          (result-error nil))
-    (when raindrop-debug
-      (raindrop--debug "[sync] %s %s" type url))
+    (when karakeep-debug
+      (karakeep--debug "[sync] %s %s" type url))
     (request url
       :type type
       :headers headers
@@ -330,7 +327,7 @@ Return parsed JSON as alist. Signal `user-error` for HTTP or parse errors."
       :data json-data
       :parser 'json-read
       :encoding 'utf-8
-      :timeout raindrop-request-timeout
+      :timeout karakeep-request-timeout
       :sync t
       :success (cl-function (lambda (&key data &allow-other-keys)
                               (setq result-data data)))
@@ -340,22 +337,22 @@ Return parsed JSON as alist. Signal `user-error` for HTTP or parse errors."
                               (setq result-error (format "HTTP %s for %s: %s"
                                                          (or status-code "unknown") endpoint err-msg))))))
     (if result-error
-        (user-error "raindrop.el: %s" result-error)
+        (user-error "karakeep.el: %s" result-error)
       result-data)))
 
-(defun raindrop-api-request-async (endpoint &optional method query-alist data callback)
-  "Asynchronous HTTP request to Raindrop API.
+(defun karakeep-api-request-async (endpoint &optional method query-alist data callback)
+  "Asynchronous HTTP request to Karakeep API.
 CALLBACK is called as (func RESULT ERR), where only one of RESULT/ERR is non-nil."
   (let* ((method (or method 'GET))
-         (url (concat raindrop-api-base endpoint))
-         (token (raindrop--get-token))
+         (url (concat karakeep-api-base endpoint))
+         (token (karakeep--get-token))
          (headers `(("Authorization" . ,(concat "Bearer " token))
                     ("Content-Type" . "application/json")))
          (json-data (when data (json-encode data)))
          (type (pcase method ('GET "GET") ('PUT "PUT") ('POST "POST") ('DELETE "DELETE") (_ "GET")))
          (cb (or callback #'ignore)))
-    (when raindrop-debug
-      (raindrop--debug "[async] %s %s" type url))
+    (when karakeep-debug
+      (karakeep--debug "[async] %s %s" type url))
     (request url
       :type type 
       :headers headers 
@@ -370,7 +367,7 @@ CALLBACK is called as (func RESULT ERR), where only one of RESULT/ERR is non-nil
 
 ;;;; Search parsing and query building
 
-(defun raindrop--parse-search-input (s)
+(defun karakeep--parse-search-input (s)
   "Parse search input S into tags, folders, excluded-tags, and text components.
 Returns plist with :tags :excluded-tags :folders :text keys.
 Supports '#tag', '#\"spaced tag\"', '-#tag', '-#\"spaced tag\"' for tags."
@@ -428,7 +425,7 @@ Supports '#tag', '#\"spaced tag\"', '-#tag', '-#\"spaced tag\"' for tags."
                   (push (substring s (1- pos) (1+ pos)) texts)
                   (setq pos (1+ pos))))
             ;; Regular tag: #tag
-            ;; Allow common punctuation used in Raindrop tags, including '/'
+            ;; Allow common punctuation used in Karakeep tags, including '/'
             (let ((start pos)
                   (end pos))
               (while (and (< end len)
@@ -470,7 +467,7 @@ Supports '#tag', '#\"spaced tag\"', '-#tag', '-#\"spaced tag\"' for tags."
           :folders (nreverse folders)
           :text (string-join (nreverse texts) " "))))
 
-(defun raindrop--meaningful-search-input-p (parsed)
+(defun karakeep--meaningful-search-input-p (parsed)
   "Check if PARSED search input has meaningful content for searching."
   (let ((text (plist-get parsed :text))
         (tags (plist-get parsed :tags))
@@ -481,91 +478,92 @@ Supports '#tag', '#\"spaced tag\"', '-#tag', '-#\"spaced tag\"' for tags."
         (and (listp excluded-tags) (> (length excluded-tags) 0))
         (and (listp folders) (> (length folders) 0)))))
 
-(defun raindrop--compose-search-string (text tags &optional excluded-tags)
-  "Compose a search string from TEXT, TAGS, and EXCLUDED-TAGS for Raindrop API."
+(defun karakeep--compose-search-string (text tags &optional excluded-tags)
+  "Compose a search string from TEXT, TAGS, and EXCLUDED-TAGS for Karakeep API."
   (string-join
    (delq nil
-         (list (and (listp tags) tags (raindrop--build-tag-search tags 'all))
-               (and (listp excluded-tags) excluded-tags (raindrop--build-excluded-tag-search excluded-tags))
+         (list (and (listp tags) tags (karakeep--build-tag-search tags 'all))
+               (and (listp excluded-tags) excluded-tags (karakeep--build-excluded-tag-search excluded-tags))
                (and text (not (string-empty-p text)) text)))
    " "))
 
-(defun raindrop--build-search-endpoint-and-query (collection-id search page &optional limit)
+(defun karakeep--build-search-endpoint-and-query (collection-id search page &optional limit)
   "Build endpoint and query params for search request.
 Returns cons (ENDPOINT . QUERY-PARAMS)."
-  (let* ((cid (if (numberp collection-id) collection-id raindrop-default-collection))
-         (pp (max 1 (min (or limit 50) 100)))
+  (let* ((cid (if (numberp collection-id) collection-id karakeep-default-collection))
+         (pp (max 1 (min (or limit 50) 200)))
          (pg (max 0 (or page 0)))
-         (endpoint (format "/raindrops/%d" cid))
+         (endpoint (if (<= cid 0)
+                        "/bookmarks"
+                      (format "/collections/%d/bookmarks" cid)))
          (q (seq-filter #'consp
                         (append
                          (when (and search (not (string-empty-p search)))
-                           (list (cons 'search search)))
-                         (list (cons 'perpage pp)
-                               (cons 'page pg)
-                               (cons 'expand "collection"))))))
+                           (list (cons 'q search)))
+                         (list (cons 'limit pp)
+                               (cons 'page pg))))))
     (cons endpoint q)))
 
 ;;;; Search building
 
-(defun raindrop--quote-tag (tag)
-  "Convert TAG to Raindrop search token: #tag or #\"multi word\"."
+(defun karakeep--quote-tag (tag)
+  "Convert TAG to Karakeep search token: #tag or #\"multi word\"."
   (let ((s (if (symbolp tag) (symbol-name tag) tag)))
     (if (string-match-p "[\t\n\r ]" s)
         (concat "#\"" (replace-regexp-in-string "\"" "\\\"" s) "\"")
       (concat "#" s))))
 
-(defun raindrop--quote-folder (name)
+(defun karakeep--quote-folder (name)
   "Convert folder NAME to token: collection:NAME or collection:\"multi word\"."
   (let ((s (if (symbolp name) (symbol-name name) name)))
     (if (string-match-p "[\t\n\r ]" s)
         (concat "collection:\"" (replace-regexp-in-string "\"" "\\\"" s) "\"")
       (concat "collection:" s))))
 
-(defun raindrop--build-search (tags folders match)
+(defun karakeep--build-search (tags folders match)
   "Build a combined search string for TAGS and FOLDERS honoring MATCH ('all|'any)."
   (let* ((ts (seq-filter (lambda (s) (and (stringp s) (> (length s) 0)))
                          (mapcar (lambda (tag) (if (symbolp tag) (symbol-name tag) tag)) (or tags '()))))
          (fs (seq-filter (lambda (s) (and (stringp s) (> (length s) 0)))
                          (mapcar (lambda (f) (if (symbolp f) (symbol-name f) f)) (or folders '()))))
-         (terms (append (mapcar #'raindrop--quote-tag ts)
-                        (mapcar #'raindrop--quote-folder fs))))
+         (terms (append (mapcar #'karakeep--quote-tag ts)
+                        (mapcar #'karakeep--quote-folder fs))))
     (pcase match
       ('any (string-join (cons "match:OR" terms) " "))
       (_    (string-join terms " ")))))
 
-(defun raindrop--build-tag-search (tags match)
+(defun karakeep--build-tag-search (tags match)
   "Build a search string for TAGS honoring MATCH ('all|'any)."
-  (raindrop--build-search tags nil match))
+  (karakeep--build-search tags nil match))
 
-(defun raindrop--quote-tag-name (tag)
+(defun karakeep--quote-tag-name (tag)
   "Quote TAG name for API search without # prefix."
   (let ((s (if (symbolp tag) (symbol-name tag) tag)))
     (if (string-match-p "[\t\n\r ]" s)
         (concat "\"" (replace-regexp-in-string "\"" "\\\"" s) "\"")
       s)))
 
-(defun raindrop--build-excluded-tag-search (excluded-tags)
+(defun karakeep--build-excluded-tag-search (excluded-tags)
   "Build a search string for EXCLUDED-TAGS using NOT operators.
-According to Raindrop API, you can exclude tags using '-tag'."
+According to Karakeep API, you can exclude tags using '-tag'."
   (when (and excluded-tags (listp excluded-tags))
     (string-join
-     (mapcar (lambda (tag) (format "-%s" (raindrop--quote-tag tag)))
+     (mapcar (lambda (tag) (format "-%s" (karakeep--quote-tag tag)))
              excluded-tags)
      " ")))
 
 ;;;; Normalization
 
-(defun raindrop--extract-collection-id (collection)
+(defun karakeep--extract-collection-id (collection)
   "Extract numeric collection ID from COLLECTION object."
   (when collection
     (or (and (numberp collection) collection)
-        (raindrop--kv collection '$id)
-        (raindrop--kv collection '_id)
-        (raindrop--kv collection 'id))))
+        (karakeep--kv collection '$id)
+        (karakeep--kv collection '_id)
+        (karakeep--kv collection 'id))))
 
-(defun raindrop--normalize-item (raw)
-  "Normalize RAW Raindrop item alist into a simpler alist."
+(defun karakeep--normalize-item (raw)
+  "Normalize RAW Karakeep item alist into a simpler alist."
   (let* ((link (alist-get 'link raw))
          (title (or (alist-get 'title raw) link))
          (excerpt (or (alist-get 'excerpt raw) ""))
@@ -575,7 +573,7 @@ According to Raindrop API, you can exclude tags using '-tag'."
          (id (alist-get '_id raw))
          (domain (alist-get 'domain raw))
          (collection-raw (alist-get 'collection raw))
-         (collection-id (raindrop--extract-collection-id collection-raw)))
+         (collection-id (karakeep--extract-collection-id collection-raw)))
     (list (cons :id id)
           (cons :link link)
           (cons :title title)
@@ -586,174 +584,174 @@ According to Raindrop API, you can exclude tags using '-tag'."
           (cons :collection collection-raw)
           (cons :collectionId collection-id))))
 
-(defun raindrop--normalize-items (items)
+(defun karakeep--normalize-items (items)
   "Normalize a list of raw ITEMS."
   (let ((item-list (if (and items (listp items)) items '())))
-    (raindrop--debug "normalize-items input count=%S" (length item-list))
-    (let ((result (mapcar #'raindrop--normalize-item item-list)))
-      (raindrop--debug "normalize-items output count=%S" (length result))
+    (karakeep--debug "normalize-items input count=%S" (length item-list))
+    (let ((result (mapcar #'karakeep--normalize-item item-list)))
+      (karakeep--debug "normalize-items output count=%S" (length result))
       result)))
 
 ;;;; Query planning (shared between sync/async)
 
-(defun raindrop--plan (plist)
+(defun karakeep--plan (plist)
   "Build a plan from PLIST and return a plist:
 :tags :folders :search-present :endpoint :query :coll-id :alt-endpoint"
   (let* ((tags (plist-get plist :tags))
          (folders (or (plist-get plist :folders)
                       (let ((f (plist-get plist :folder))) (and f (list f)))))
-         (collection (or (plist-get plist :collection) raindrop-default-collection))
-         (limit (or (plist-get plist :limit) raindrop-default-limit))
+         (collection (or (plist-get plist :collection) karakeep-default-collection))
+         (limit (or (plist-get plist :limit) karakeep-default-limit))
          (match (or (plist-get plist :match) 'all))
          (tags* (and tags (if (listp tags) tags (list tags))))
          (folders* (and folders (if (listp folders) folders (list folders))))
          (resolved-coll (and folders* (= (length folders*) 1)
-                             (let ((cid (raindrop--resolve-collection-id (car folders*))))
+                             (let ((cid (karakeep--resolve-collection-id (car folders*))))
                                (and (integerp cid) (> cid 0) cid))))
          (effective-coll (or resolved-coll collection))
          (search (and (or tags* (and folders* (not resolved-coll)))
-                      (raindrop--build-search tags* (and (not resolved-coll) folders*) match)))
-         (endpoint (raindrop--endpoint-for effective-coll (and search t)))
-         (query `((perpage . ,(min limit 100))
-                  ,@(when search `((search . ,search)))))
+                      (karakeep--build-search tags* (and (not resolved-coll) folders*) match)))
+         (endpoint (karakeep--endpoint-for effective-coll (and search t)))
+         (query `((limit . ,(min limit 200))
+                  ,@(when search `((q . ,search)))))
          (coll-id (cond
                    ((numberp effective-coll) effective-coll)
-                   ((or (eq effective-coll 'all) (eq effective-coll :all) (null effective-coll)) raindrop-default-collection)
-                   (t raindrop-default-collection)))
-         (alt (and (<= coll-id 0) search
-                   (if (string= endpoint "/raindrops") "/raindrops/0" "/raindrops"))))
+                   ((or (eq effective-coll 'all) (eq effective-coll :all) (null effective-coll)) karakeep-default-collection)
+                   (t karakeep-default-collection))))
     (list :tags tags* :folders folders* :search-present (and search t)
-          :endpoint endpoint :query query :coll-id coll-id :alt-endpoint alt)))
+          :endpoint endpoint :query query :coll-id coll-id :alt-endpoint nil)))
 
 ;;;; Public fetching API
 
-(defun raindrop-fetch (&rest plist)
-  "Fetch raindrops according to PLIST keys:
+(defun karakeep-fetch (&rest plist)
+  "Fetch Karakeep bookmarks according to PLIST keys:
 :tags (list or string), :excluded-tags (list or string), :folders (list/string) or :folder (string),
 :search (string), :collection (number or 0 for all), :limit (int), :sort (symbol), :match ('all|'any).
 Returns list of normalized items."
-  (when raindrop-debug
-    (raindrop--debug "fetch %S" plist))
+  (when karakeep-debug
+    (karakeep--debug "fetch %S" plist))
   (let* ((tags (plist-get plist :tags))
          (excluded-tags (plist-get plist :excluded-tags))
          (folders (or (plist-get plist :folders)
                       (let ((f (plist-get plist :folder))) (and f (list f)))))
          (search-text (plist-get plist :search))
          (match (or (plist-get plist :match) 'all))
-         (limit (or (plist-get plist :limit) raindrop-default-limit))
+         (limit (or (plist-get plist :limit) karakeep-default-limit))
          (input (string-join 
                  (delq nil
                        (append 
                         (when tags 
-                          (list (raindrop--build-tag-search tags match)))
+                          (list (karakeep--build-tag-search tags match)))
                         (when excluded-tags
-                          (list (raindrop--build-excluded-tag-search excluded-tags)))
+                          (list (karakeep--build-excluded-tag-search excluded-tags)))
                         (when folders
                           (list (string-join (mapcar (lambda (folder) (concat "[" folder "]")) folders) " ")))
                         (when (and search-text (not (string-empty-p (string-trim search-text))))
                           (list (string-trim search-text)))))
                  " ")))
-    (when raindrop-debug
-      (raindrop--debug "fetch input=%S limit=%S" input limit))
+    (when karakeep-debug
+      (karakeep--debug "fetch input=%S limit=%S" input limit))
     (if (string-empty-p (string-trim input))
         '()  ; Return empty list if no search criteria
       (progn
-        (raindrop--debug "calling raindrop-search-bookmarks with input=%S limit=%S" input limit)
-        (raindrop-search-bookmarks input nil limit)))))
+        (karakeep--debug "calling karakeep-search-bookmarks with input=%S limit=%S" input limit)
+        (karakeep-search-bookmarks input nil limit)))))
 
-(defun raindrop-fetch-async (plist callback)
-  "Asynchronously fetch raindrops according to PLIST and call CALLBACK with (items err)."
+(defun karakeep-fetch-async (plist callback)
+  "Asynchronously fetch Karakeep bookmarks according to PLIST and call CALLBACK with (items err)."
   (let* ((tags (plist-get plist :tags))
          (excluded-tags (plist-get plist :excluded-tags))
          (folders (or (plist-get plist :folders)
                       (let ((f (plist-get plist :folder))) (and f (list f)))))
          (search-text (plist-get plist :search))
          (match (or (plist-get plist :match) 'all))
-         (limit (or (plist-get plist :limit) raindrop-default-limit))
+         (limit (or (plist-get plist :limit) karakeep-default-limit))
          (input (string-join 
                  (delq nil
                        (append 
                         (when tags 
-                          (list (raindrop--build-tag-search tags match)))
+                          (list (karakeep--build-tag-search tags match)))
                         (when excluded-tags
-                          (list (raindrop--build-excluded-tag-search excluded-tags)))
+                          (list (karakeep--build-excluded-tag-search excluded-tags)))
                         (when folders
                           (list (string-join (mapcar (lambda (folder) (concat "[" folder "]")) folders) " ")))
                         (when (and search-text (not (string-empty-p (string-trim search-text))))
                           (list (string-trim search-text)))))
                  " ")))
-    (when raindrop-debug
-      (raindrop--debug "fetch-async input=%S limit=%S" input limit))
+    (when karakeep-debug
+      (karakeep--debug "fetch-async input=%S limit=%S" input limit))
     (if (string-empty-p (string-trim input))
         (funcall callback '() nil)  ; Return empty list if no search criteria
-      (raindrop-search-bookmarks input callback limit))))
+      (karakeep-search-bookmarks input callback limit))))
 
 ;;;; Filters API
 
-(defun raindrop--filters-endpoint (collection)
+(defun karakeep--filters-endpoint (collection)
   "Return the Filters endpoint for COLLECTION."
   (let* ((id (cond
               ((numberp collection) collection)
-              ((or (eq collection 'all) (eq collection :all) (null collection)) raindrop-default-collection)
-              (t raindrop-default-collection)))
+              ((or (eq collection 'all) (eq collection :all) (null collection)) karakeep-default-collection)
+              (t karakeep-default-collection)))
          (cid (if (<= id 0) 0 id)))
-    (format "/filters/%s" cid)))
+    (if (<= cid 0)
+        "/bookmarks/filters"
+      (format "/collections/%s/filters" cid))))
 
-(defun raindrop-filters (&rest plist)
+(defun karakeep-filters (&rest plist)
   "Fetch aggregated filters for a given collection.
 PLIST keys:
-  :collection — collection id (default `raindrop-default-collection` → “all”)
-  :search — search string (same as /raindrops search=)
+  :collection — collection id (default `karakeep-default-collection` → “all”)
+  :search — free-text search string
   :tags-sort — 'count (default) or '_id
 
 Returns an alist per API: fields broken, duplicates, important, notag,
 tags (list of {_id count}), types (list of {_id count})."
-  (let* ((collection (or (plist-get plist :collection) raindrop-default-collection))
+  (let* ((collection (or (plist-get plist :collection) karakeep-default-collection))
          (search (plist-get plist :search))
          (tags-sort (or (plist-get plist :tags-sort) 'count))
-         (endpoint (raindrop--filters-endpoint collection))
+         (endpoint (karakeep--filters-endpoint collection))
          (query `((tagsSort . ,(pcase tags-sort
                                  ('_id "_id")
                                  ('count "count")
                                  (_ "count")))
                   ,@(when (and search (stringp search) (> (length search) 0))
-                      `((search . ,search)))))
-         (payload (raindrop-api-request endpoint 'GET query nil)))
+                      `((q . ,search)))))
+         (payload (karakeep-api-request endpoint 'GET query nil)))
     payload))
 
 ;;;###autoload
-(defun raindrop-debug-filters (&optional collection search)
+(defun karakeep-debug-filters (&optional collection search)
   "Make a raw request to the Filters API for COLLECTION with SEARCH."
-  (let* ((coll (or collection raindrop-default-collection)))
-    (raindrop-filters :collection coll :search search)))
+  (let* ((coll (or collection karakeep-default-collection)))
+    (karakeep-filters :collection coll :search search)))
 
 ;;;; Enhanced collection management
 
-(defvar raindrop--collections-by-title nil
+(defvar karakeep--collections-by-title nil
   "Hash table mapping collection titles (lowercase) to IDs.")
 
-(defvar raindrop--collections-by-id nil
+(defvar karakeep--collections-by-id nil
   "Hash table mapping collection IDs to titles.")
 
-(defvar raindrop--collections-by-path nil
+(defvar karakeep--collections-by-path nil
   "Hash table mapping full path (lowercase) to IDs (e.g. \"parent/child\").")
 
-(defvar raindrop--collections-parent nil
+(defvar karakeep--collections-parent nil
   "Hash table mapping collection ID to parent ID.")
 
-(defvar raindrop--collections-all nil
+(defvar karakeep--collections-all nil
   "List of all collections (both root and nested).")
 
-(defvar raindrop--collections-loading nil
+(defvar karakeep--collections-loading nil
   "Flag indicating if collections are currently being loaded.")
 
-(defvar raindrop--collections-ready nil
+(defvar karakeep--collections-ready nil
   "Flag indicating if collections have been loaded and indexed.")
 
-(defvar raindrop--collections-callbacks nil
+(defvar karakeep--collections-callbacks nil
   "List of callbacks waiting for collections to load.")
 
-(defun raindrop--kv (item key)
+(defun karakeep--kv (item key)
   "Get value from ITEM (alist/plist) using KEY (keyword or symbol)."
   (let* ((k1 key)
          (k2 (if (keywordp key) (intern (substring (symbol-name key) 1))
@@ -763,16 +761,16 @@ tags (list of {_id count}), types (list of {_id count})."
         (and (consp item) (alist-get k1 item))
         (and (consp item) (alist-get k2 item)))))
 
-(defun raindrop--extract-parent-id (collection)
+(defun karakeep--extract-parent-id (collection)
   "Extract parent collection ID from COLLECTION."
-  (let ((parent (raindrop--kv collection 'parent)))
+  (let ((parent (karakeep--kv collection 'parent)))
     (when parent
-      (or (raindrop--kv parent '$id)
-          (raindrop--kv parent '_id)
-          (raindrop--kv parent 'id)
+      (or (karakeep--kv parent '$id)
+          (karakeep--kv parent '_id)
+          (karakeep--kv parent 'id)
           (and (numberp parent) parent)))))
 
-(defun raindrop--build-collection-path (id by-id by-parent &optional seen)
+(defun karakeep--build-collection-path (id by-id by-parent &optional seen)
   "Build full path for collection ID using BY-ID and BY-PARENT hash tables.
 SEEN is used to prevent infinite loops."
   (let ((seen (or seen (make-hash-table :test 'eql))))
@@ -782,11 +780,11 @@ SEEN is used to prevent infinite loops."
     (let ((title (gethash id by-id))
           (parent-id (gethash id by-parent)))
       (if (and parent-id (gethash parent-id by-id))
-          (concat (raindrop--build-collection-path parent-id by-id by-parent seen)
+          (concat (karakeep--build-collection-path parent-id by-id by-parent seen)
                   "/" title)
         title))))
 
-(defun raindrop--build-collections-index (items)
+(defun karakeep--build-collections-index (items)
   "Build index hash tables from collections ITEMS."
   (let ((by-title (make-hash-table :test 'equal))
         (by-id (make-hash-table :test 'eql))
@@ -794,15 +792,15 @@ SEEN is used to prevent infinite loops."
         (by-parent (make-hash-table :test 'eql))
         (seen-ids (make-hash-table :test 'eql)))
     (dolist (c items)
-      (let* ((id (or (raindrop--kv c '_id)
-                     (raindrop--kv c :_id)
-                     (raindrop--kv c 'id)
-                     (raindrop--kv c :id)))
-             (title (or (raindrop--kv c 'title)
-                        (raindrop--kv c :title)
-                        (raindrop--kv c 'name)
-                        (raindrop--kv c :name)))
-             (parent-id (raindrop--extract-parent-id c)))
+      (let* ((id (or (karakeep--kv c '_id)
+                     (karakeep--kv c :_id)
+                     (karakeep--kv c 'id)
+                     (karakeep--kv c :id)))
+             (title (or (karakeep--kv c 'title)
+                        (karakeep--kv c :title)
+                        (karakeep--kv c 'name)
+                        (karakeep--kv c :name)))
+             (parent-id (karakeep--extract-parent-id c)))
         (when (and id title (not (gethash id seen-ids)))
           (puthash id t seen-ids)
           (puthash (downcase title) id by-title)
@@ -810,160 +808,160 @@ SEEN is used to prevent infinite loops."
           (when parent-id
             (puthash id parent-id by-parent)))))
     (maphash (lambda (id _title)
-               (let ((path (raindrop--build-collection-path id by-id by-parent)))
+               (let ((path (karakeep--build-collection-path id by-id by-parent)))
                  (when path
                    (puthash (downcase path) id by-path))))
              by-id)
-    (setq raindrop--collections-by-title by-title
-          raindrop--collections-by-id by-id
-          raindrop--collections-by-path by-path
-          raindrop--collections-parent by-parent
-          raindrop--collections-all items)))
+    (setq karakeep--collections-by-title by-title
+          karakeep--collections-by-id by-id
+          karakeep--collections-by-path by-path
+          karakeep--collections-parent by-parent
+          karakeep--collections-all items)))
 
-(defun raindrop--run-collections-callbacks ()
+(defun karakeep--run-collections-callbacks ()
   "Run all pending collection callbacks and clear the list."
-  (let ((callbacks raindrop--collections-callbacks))
-    (setq raindrop--collections-callbacks nil)
+  (let ((callbacks karakeep--collections-callbacks))
+    (setq karakeep--collections-callbacks nil)
     (dolist (cb callbacks)
       (when cb (funcall cb)))))
 
-(defun raindrop--ensure-collections-async (&optional callback)
+(defun karakeep--ensure-collections-async (&optional callback)
   "Ensure collections are loaded (root + nested), calling CALLBACK when ready."
   (cond
-   (raindrop--collections-ready
+   (karakeep--collections-ready
     (when callback (funcall callback)))
-   (raindrop--collections-loading
+   (karakeep--collections-loading
     (when callback
-      (push callback raindrop--collections-callbacks)))
+      (push callback karakeep--collections-callbacks)))
    (t
     (when callback
-      (push callback raindrop--collections-callbacks))
-    (setq raindrop--collections-loading t)
-    (raindrop-api-request-async
+      (push callback karakeep--collections-callbacks))
+    (setq karakeep--collections-loading t)
+    (karakeep-api-request-async
      "/collections" 'GET nil nil
      (lambda (root-res root-err)
        (if root-err
            (progn
-             (setq raindrop--collections-loading nil
-                   raindrop--collections-ready t)
-             (raindrop--run-collections-callbacks))
+             (setq karakeep--collections-loading nil
+                   karakeep--collections-ready t)
+             (karakeep--run-collections-callbacks))
          (let ((root-items (alist-get 'items root-res)))
            (when (vectorp root-items)
              (setq root-items (append root-items nil)))
-           (raindrop-api-request-async
+           (karakeep-api-request-async
             "/collections/childrens" 'GET nil nil
             (lambda (child-res child-err)
-              (setq raindrop--collections-loading nil)
+              (setq karakeep--collections-loading nil)
               (let ((child-items (unless child-err
                                    (let ((items (alist-get 'items child-res)))
                                      (if (vectorp items) (append items nil) items))))
                     (all-items (or root-items '())))
                 (when child-items
                   (setq all-items (append all-items child-items)))
-                (raindrop--build-collections-index all-items))
-              (setq raindrop--collections-ready t)
-              (raindrop--run-collections-callbacks))))))))))
+                (karakeep--build-collections-index all-items))
+              (setq karakeep--collections-ready t)
+              (karakeep--run-collections-callbacks))))))))))
 
-(defun raindrop--ensure-collections-sync ()
+(defun karakeep--ensure-collections-sync ()
   "Ensure collections are loaded synchronously."
-  (unless raindrop--collections-ready
-    (let* ((root-res (raindrop-api-request "/collections" 'GET nil nil))
+  (unless karakeep--collections-ready
+    (let* ((root-res (karakeep-api-request "/collections" 'GET nil nil))
            (root-items (let ((items (alist-get 'items root-res)))
                          (if (vectorp items) (append items nil) items)))
            (child-res (condition-case nil
-                          (raindrop-api-request "/collections/childrens" 'GET nil nil)
+                          (karakeep-api-request "/collections/childrens" 'GET nil nil)
                         (error nil)))
            (child-items (when child-res
                           (let ((items (alist-get 'items child-res)))
                             (if (vectorp items) (append items nil) items))))
            (all-items (append (or root-items '()) (or child-items '()))))
-      (raindrop--build-collections-index all-items)
-      (setq raindrop--collections-ready t))))
+      (karakeep--build-collections-index all-items)
+      (setq karakeep--collections-ready t))))
 
-(defun raindrop--collection-id-by-title (name)
+(defun karakeep--collection-id-by-title (name)
   "Get collection ID by NAME (title or full path like \"Parent/Child\")."
   (when name
     (let* ((lname (downcase name))
-           (by-path (and raindrop--collections-by-path
-                         (gethash lname raindrop--collections-by-path)))
-           (by-title (and raindrop--collections-by-title
-                          (gethash lname raindrop--collections-by-title)))
+           (by-path (and karakeep--collections-by-path
+                         (gethash lname karakeep--collections-by-path)))
+           (by-title (and karakeep--collections-by-title
+                          (gethash lname karakeep--collections-by-title)))
            (by-path-suffix
             (and (not by-path)
                  (not by-title)
-                 raindrop--collections-by-path
+                 karakeep--collections-by-path
                  (let ((suffix (concat "/" lname))
                        found-id)
                    (maphash (lambda (path id)
                               (when (and (not found-id)
                                          (string-suffix-p suffix path))
                                 (setq found-id id)))
-                            raindrop--collections-by-path)
+                            karakeep--collections-by-path)
                    found-id)))
            (by-substring
             (and (not by-path)
                  (not by-title)
                  (not by-path-suffix)
-                 raindrop--collections-by-path
+                 karakeep--collections-by-path
                  (let (found-id)
                    (maphash (lambda (path id)
                               (when (and (not found-id)
                                          (string-match-p (regexp-quote lname) path))
                                 (setq found-id id)))
-                            raindrop--collections-by-path)
+                            karakeep--collections-by-path)
                    found-id))))
       (or by-path by-title by-path-suffix by-substring))))
 
-(defun raindrop--collection-title-by-id (cid)
+(defun karakeep--collection-title-by-id (cid)
   "Get collection title by ID CID."
   (cond
    ((eq cid -1) "Unsorted")
-   ((hash-table-p raindrop--collections-by-id)
-    (gethash cid raindrop--collections-by-id))
+   ((hash-table-p karakeep--collections-by-id)
+    (gethash cid karakeep--collections-by-id))
    (t nil)))
 
-(defun raindrop--collection-path-by-id (cid)
+(defun karakeep--collection-path-by-id (cid)
   "Get full collection path by ID CID (e.g. \"Parent/Child\")."
   (cond
    ((null cid) nil)
    ((eq cid -1) "Unsorted")
-   ((and raindrop--collections-by-id
-         raindrop--collections-parent
-         (gethash cid raindrop--collections-by-id))
-    (raindrop--build-collection-path cid
-                                      raindrop--collections-by-id
-                                      raindrop--collections-parent))
-   (t (raindrop--collection-title-by-id cid))))
+   ((and karakeep--collections-by-id
+         karakeep--collections-parent
+         (gethash cid karakeep--collections-by-id))
+    (karakeep--build-collection-path cid
+                                      karakeep--collections-by-id
+                                      karakeep--collections-parent))
+   (t (karakeep--collection-title-by-id cid))))
 
-(defun raindrop--all-collection-paths ()
+(defun karakeep--all-collection-paths ()
   "Return list of all collection paths for completion."
-  (when raindrop--collections-by-path
+  (when karakeep--collections-by-path
     (let (paths)
       (maphash (lambda (_key id)
-                 (let ((path (raindrop--collection-path-by-id id)))
+                 (let ((path (karakeep--collection-path-by-id id)))
                    (when path (push path paths))))
-               raindrop--collections-by-id)
+               karakeep--collections-by-id)
       (sort paths #'string<))))
 
 ;;;; High-level search API
 
-(defun raindrop--do-search-bookmarks (input callback limit page)
+(defun karakeep--do-search-bookmarks (input callback limit page)
   "Internal search implementation after collections are loaded."
-  (let* ((parsed (raindrop--parse-search-input input))
+  (let* ((parsed (karakeep--parse-search-input input))
          (tags (plist-get parsed :tags))
          (excluded-tags (plist-get parsed :excluded-tags))
          (folders (plist-get parsed :folders))
          (text (plist-get parsed :text))
          (folder-name (car (last folders)))
          (coll-id (or (and folder-name
-                           (raindrop--collection-id-by-title folder-name))
-                      raindrop-default-collection))
-         (search (raindrop--compose-search-string text tags excluded-tags))
-         (pair (raindrop--build-search-endpoint-and-query coll-id search page limit))
+                           (karakeep--collection-id-by-title folder-name))
+                      karakeep-default-collection))
+         (search (karakeep--compose-search-string text tags excluded-tags))
+         (pair (karakeep--build-search-endpoint-and-query coll-id search page limit))
          (endpoint (car pair))
          (query (cdr pair)))
     (if callback
-        (raindrop-api-request-async
+        (karakeep-api-request-async
          endpoint 'GET query nil
          (lambda (res err)
            (when (and err (string-match-p "HTTP 404\\|Network error" err))
@@ -973,39 +971,39 @@ SEEN is used to prevent infinite loops."
              (let* ((raw (or (alist-get 'items res) '()))
                     (items (if (vectorp raw) (append raw nil) raw))
                     (norm (mapcar (lambda (x) (condition-case nil
-                                                  (raindrop--normalize-item x)
+                                                  (karakeep--normalize-item x)
                                                 (error x)))
                                   items)))
                (funcall callback norm nil)))))
-      (let* ((payload (raindrop-api-request endpoint 'GET query nil))
+      (let* ((payload (karakeep-api-request endpoint 'GET query nil))
              (items-raw (alist-get 'items payload))
              (items (if (vectorp items-raw) (append items-raw nil) items-raw)))
-        (raindrop--normalize-items items)))))
+        (karakeep--normalize-items items)))))
 
-(defun raindrop-search-bookmarks (input &optional callback limit page)
-  "Search Raindrop bookmarks with INPUT string.
+(defun karakeep-search-bookmarks (input &optional callback limit page)
+  "Search Karakeep bookmarks with INPUT string.
 If CALLBACK is provided, performs async search, otherwise sync.
 Returns normalized items list (sync) or calls CALLBACK with (items err).
 Ensures collections are loaded before searching."
   (if callback
-      (if raindrop--collections-ready
-          (raindrop--do-search-bookmarks input callback limit page)
-        (raindrop--ensure-collections-async
+      (if karakeep--collections-ready
+          (karakeep--do-search-bookmarks input callback limit page)
+        (karakeep--ensure-collections-async
          (lambda ()
-           (raindrop--do-search-bookmarks input callback limit page))))
-    (unless raindrop--collections-ready
-      (raindrop--ensure-collections-sync))
-    (raindrop--do-search-bookmarks input callback limit page)))
+           (karakeep--do-search-bookmarks input callback limit page))))
+    (unless karakeep--collections-ready
+      (karakeep--ensure-collections-sync))
+    (karakeep--do-search-bookmarks input callback limit page)))
 
 ;;;; Tags management
 
-(defun raindrop--fetch-tags (&optional callback)
-  "Fetch all tags from Raindrop API.
+(defun karakeep--fetch-tags (&optional callback)
+  "Fetch all tags from Karakeep API.
 If CALLBACK is provided, performs async request, otherwise sync.
 Returns list of tag objects or calls CALLBACK with (tags err)."
   (let ((endpoint "/tags"))
     (if callback
-        (raindrop-api-request-async
+        (karakeep-api-request-async
          endpoint 'GET nil nil
          (lambda (res err)
            (if err
@@ -1013,81 +1011,81 @@ Returns list of tag objects or calls CALLBACK with (tags err)."
              (let* ((raw (or (alist-get 'items res) '()))
                     (tags (if (vectorp raw) (append raw nil) raw)))
                (funcall callback tags nil)))))
-      (let* ((payload (raindrop-api-request endpoint 'GET nil nil))
+      (let* ((payload (karakeep-api-request endpoint 'GET nil nil))
              (items-raw (alist-get 'items payload))
              (tags (if (vectorp items-raw) (append items-raw nil) items-raw)))
         tags))))
 
-(defun raindrop-force-load-tags (&optional callback)
-  "Force reload all tags from Raindrop API and update cache.
+(defun karakeep-force-load-tags (&optional callback)
+  "Force reload all tags from Karakeep API and update cache.
 If CALLBACK is provided, performs async request, otherwise sync.
 Returns list of tags or calls CALLBACK with (tags err)."
   (interactive)
-  (setq raindrop--tags-ready nil
-        raindrop--tags-cache nil
-        raindrop--tags-loading nil)
-  (when raindrop-debug
-    (raindrop--debug "force loading tags..."))
+  (setq karakeep--tags-ready nil
+        karakeep--tags-cache nil
+        karakeep--tags-loading nil)
+  (when karakeep-debug
+    (karakeep--debug "force loading tags..."))
   (if callback
       (progn
-        (setq raindrop--tags-loading t)
-        (raindrop--fetch-tags
+        (setq karakeep--tags-loading t)
+        (karakeep--fetch-tags
          (lambda (tags err)
-           (setq raindrop--tags-loading nil)
+           (setq karakeep--tags-loading nil)
            (if err
-               (when raindrop-debug
-                 (raindrop--debug "tags load error: %s" err))
-             (setq raindrop--tags-cache tags
-                   raindrop--tags-ready t)
-             (when raindrop-debug
-               (raindrop--debug "loaded %d tags" (length tags))))
+               (when karakeep-debug
+                 (karakeep--debug "tags load error: %s" err))
+             (setq karakeep--tags-cache tags
+                   karakeep--tags-ready t)
+             (when karakeep-debug
+               (karakeep--debug "loaded %d tags" (length tags))))
            (funcall callback (or tags '()) err))))
-    (let ((tags (raindrop--fetch-tags)))
-      (setq raindrop--tags-cache tags
-            raindrop--tags-ready t)
-      (when raindrop-debug
-        (raindrop--debug "loaded %d tags" (length tags)))
+    (let ((tags (karakeep--fetch-tags)))
+      (setq karakeep--tags-cache tags
+            karakeep--tags-ready t)
+      (when karakeep-debug
+        (karakeep--debug "loaded %d tags" (length tags)))
       tags)))
 
-(defun raindrop-load-tags (&optional callback)
+(defun karakeep-load-tags (&optional callback)
   "Load tags from cache or API if not already loaded.
 If CALLBACK is provided, performs async request when needed, otherwise sync.
 Returns list of tags or calls CALLBACK with (tags err)."
   (cond
-   ((and raindrop--tags-ready raindrop--tags-cache)
-    (when raindrop-debug
-      (raindrop--debug "using cached tags (%d items)" (length raindrop--tags-cache)))
+   ((and karakeep--tags-ready karakeep--tags-cache)
+    (when karakeep-debug
+      (karakeep--debug "using cached tags (%d items)" (length karakeep--tags-cache)))
     (if callback
-        (funcall callback raindrop--tags-cache nil)
-      raindrop--tags-cache))
-   (raindrop--tags-loading
-    (when raindrop-debug
-      (raindrop--debug "tags are loading, returning empty for now"))
+        (funcall callback karakeep--tags-cache nil)
+      karakeep--tags-cache))
+   (karakeep--tags-loading
+    (when karakeep-debug
+      (karakeep--debug "tags are loading, returning empty for now"))
     (if callback
         (funcall callback '() nil)
       '()))
    (t
-    (when raindrop-debug
-      (raindrop--debug "loading tags from API..."))
+    (when karakeep-debug
+      (karakeep--debug "loading tags from API..."))
     (if callback
         (progn
-          (setq raindrop--tags-loading t)
-          (raindrop--fetch-tags
+          (setq karakeep--tags-loading t)
+          (karakeep--fetch-tags
            (lambda (tags err)
-             (setq raindrop--tags-loading nil)
+             (setq karakeep--tags-loading nil)
              (unless err
-               (setq raindrop--tags-cache tags
-                     raindrop--tags-ready t))
+               (setq karakeep--tags-cache tags
+                     karakeep--tags-ready t))
              (funcall callback (or tags '()) err))))
-      (let ((tags (raindrop--fetch-tags)))
-        (setq raindrop--tags-cache tags
-              raindrop--tags-ready t)
+      (let ((tags (karakeep--fetch-tags)))
+        (setq karakeep--tags-cache tags
+              karakeep--tags-ready t)
         tags)))))
 
-(defun raindrop-copy-tags ()
+(defun karakeep-copy-tags ()
   "Copy all tags to kill ring as a comma-separated string."
   (interactive)
-  (let* ((tags (raindrop-load-tags))
+  (let* ((tags (karakeep-load-tags))
          (tag-names (mapcar (lambda (tag) 
                               (or (alist-get '_id tag)
                                   (alist-get 'name tag)
@@ -1106,48 +1104,48 @@ Returns list of tags or calls CALLBACK with (tags err)."
 
 ;;;; Collections helpers
 
-(defun raindrop-collections ()
+(defun karakeep-collections ()
   "Get the user's collection list (alist payload).
-Useful for discovering valid collection IDs for /raindrops/{id} requests."
-  (raindrop-api-request "/collections" 'GET nil nil))
+Useful for discovering valid collection IDs for /collections/{id}/bookmarks requests."
+  (karakeep-api-request "/collections" 'GET nil nil))
 
 ;;;###autoload
-(defun raindrop-debug-collections ()
+(defun karakeep-debug-collections ()
   "Return the raw payload with the collection list."
-  (raindrop-collections))
+  (karakeep-collections))
 
 ;;;###autoload
-(defun raindrop-clear-cache ()
+(defun karakeep-clear-cache ()
   "Clear internal caches (collections and tags)."
   (interactive)
-  (setq raindrop--collections-cache nil
-        raindrop--tags-cache nil
-        raindrop--tags-ready nil
-        raindrop--tags-loading nil)
-  (when raindrop-debug-enable
-    (raindrop--debug "collections and tags cache cleared")))
+  (setq karakeep--collections-cache nil
+        karakeep--tags-cache nil
+        karakeep--tags-ready nil
+        karakeep--tags-loading nil)
+  (when karakeep-debug-enable
+    (karakeep--debug "collections and tags cache cleared")))
 
 ;;;; Minimal debug helpers
 
 ;;;###autoload
-(defun raindrop-debug-search (tags &optional collection)
+(defun karakeep-debug-search (tags &optional collection)
   "Make a raw API request filtered by TAGS and return the payload (alist).
 TAGS is a string or list of tags. COLLECTION is a collection id (default 0 = all collections)."
-  (let* ((tags-list (raindrop-parse-tags tags))
-         (search (and tags-list (raindrop--build-tag-search tags-list 'all)))
+  (let* ((tags-list (karakeep-parse-tags tags))
+         (search (and tags-list (karakeep--build-tag-search tags-list 'all)))
          (coll (if (numberp collection) collection 0))
-         (endpoint (raindrop--endpoint-for coll (and search t))))
-    (raindrop-api-request endpoint 'GET `((perpage . 5) ,@(when search `((search . ,search)))) nil)))
+         (endpoint (karakeep--endpoint-for coll (and search t))))
+    (karakeep-api-request endpoint 'GET `((limit . 5) ,@(when search `((q . ,search)))) nil)))
 
 ;;;###autoload
-(defun raindrop-debug-fetch (tags &optional collection limit)
+(defun karakeep-debug-fetch (tags &optional collection limit)
   "Get a normalized list of bookmarks filtered by TAGS.
 COLLECTION is the collection id (default 0 = all). LIMIT is the maximum number of items (default 10)."
-  (let* ((tags-list (raindrop-parse-tags tags))
+  (let* ((tags-list (karakeep-parse-tags tags))
          (coll (if (numberp collection) collection 0))
          (lim (or limit 10)))
-    (apply #'raindrop-fetch (list :tags tags-list :collection coll :limit lim :match 'all))))
+    (apply #'karakeep-fetch (list :tags tags-list :collection coll :limit lim :match 'all))))
 
-(provide 'raindrop)
+(provide 'karakeep)
 
-;;; raindrop.el ends here
+;;; karakeep.el ends here
