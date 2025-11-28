@@ -259,15 +259,10 @@ A list is normalized element-wise."
           (when query-alist
             (concat "?" (karakeep--build-query query-alist)))))
 
-(defun karakeep--collection-endpoint (collection)
-  "Return the base endpoint for listing by COLLECTION."
-  (let* ((id (cond
-              ((numberp collection) collection)
-              ((or (eq collection 'all) (eq collection :all) (null collection)) karakeep-default-collection)
-              (t karakeep-default-collection))))
-    (if (<= id 0)
-        "/dashboard/bookmarks"
-      (format "/dashboard/collections/%s/bookmarks" id))))
+(defun karakeep--collection-endpoint (_collection)
+  "Return the base endpoint for listing by COLLECTION.
+Deprecated: all bookmark reads go through the unified /api/v1 endpoints."
+  "/api/v1/bookmarks")
 
 (defun karakeep--endpoint-for (collection search-present)
   "Pick the correct endpoint given COLLECTION and SEARCH-PRESENT."
@@ -494,13 +489,13 @@ Returns cons (ENDPOINT . QUERY-PARAMS)."
   (let* ((cid (if (numberp collection-id) collection-id karakeep-default-collection))
          (pp (max 1 (min (or limit 50) 200)))
          (pg (max 0 (or page 0)))
-         (endpoint (if (<= cid 0)
-                        "/dashboard/bookmarks"
-                      (format "/dashboard/collections/%d/bookmarks" cid)))
+         (endpoint "/api/v1/bookmarks/search")
          (q (seq-filter #'consp
                         (append
                          (when (and search (not (string-empty-p search)))
                            (list (cons 'q search)))
+                         (when (> cid 0)
+                           (list (cons 'collectionId cid)))
                          (list (cons 'limit pp)
                                (cons 'page pg))))))
     (cons endpoint q)))
@@ -684,16 +679,10 @@ Returns list of normalized items."
 
 ;;;; Filters API
 
-(defun karakeep--filters-endpoint (collection)
-  "Return the Filters endpoint for COLLECTION."
-  (let* ((id (cond
-              ((numberp collection) collection)
-              ((or (eq collection 'all) (eq collection :all) (null collection)) karakeep-default-collection)
-              (t karakeep-default-collection)))
-         (cid (if (<= id 0) 0 id)))
-    (if (<= cid 0)
-        "/dashboard/bookmarks/filters"
-      (format "/dashboard/collections/%s/filters" cid))))
+(defun karakeep--filters-endpoint (_collection)
+  "Return the Filters endpoint for COLLECTION.
+Deprecated: filters are served from /api/v1/bookmarks/filters."
+  "/api/v1/bookmarks/filters")
 
 (defun karakeep-filters (&rest plist)
   "Fetch aggregated filters for a given collection.
@@ -712,6 +701,8 @@ tags (list of {_id count}), types (list of {_id count})."
                                  ('_id "_id")
                                  ('count "count")
                                  (_ "count")))
+                  ,@(when (and (numberp collection) (> collection 0))
+                      `((collectionId . ,collection)))
                   ,@(when (and search (stringp search) (> (length search) 0))
                       `((q . ,search)))))
          (payload (karakeep-api-request endpoint 'GET query nil)))
@@ -836,7 +827,7 @@ SEEN is used to prevent infinite loops."
       (push callback karakeep--collections-callbacks))
     (setq karakeep--collections-loading t)
     (karakeep-api-request-async
-     "/dashboard/collections" 'GET nil nil
+     "/api/v1/collections" 'GET nil nil
      (lambda (root-res root-err)
        (if root-err
            (progn
@@ -847,7 +838,7 @@ SEEN is used to prevent infinite loops."
            (when (vectorp root-items)
              (setq root-items (append root-items nil)))
            (karakeep-api-request-async
-            "/dashboard/collections/childrens" 'GET nil nil
+            "/api/v1/collections/childrens" 'GET nil nil
             (lambda (child-res child-err)
               (setq karakeep--collections-loading nil)
               (let ((child-items (unless child-err
@@ -863,11 +854,11 @@ SEEN is used to prevent infinite loops."
 (defun karakeep--ensure-collections-sync ()
   "Ensure collections are loaded synchronously."
   (unless karakeep--collections-ready
-    (let* ((root-res (karakeep-api-request "/dashboard/collections" 'GET nil nil))
+    (let* ((root-res (karakeep-api-request "/api/v1/collections" 'GET nil nil))
            (root-items (let ((items (alist-get 'items root-res)))
                          (if (vectorp items) (append items nil) items)))
            (child-res (condition-case nil
-                          (karakeep-api-request "/dashboard/collections/childrens" 'GET nil nil)
+                          (karakeep-api-request "/api/v1/collections/childrens" 'GET nil nil)
                         (error nil)))
            (child-items (when child-res
                           (let ((items (alist-get 'items child-res)))
@@ -1097,8 +1088,8 @@ Returns list of tags or calls CALLBACK with (tags err)."
 
 (defun karakeep-collections ()
   "Get the user's collection list (alist payload).
-Useful for discovering valid collection IDs for /dashboard/collections/{id}/bookmarks requests."
-  (karakeep-api-request "/dashboard/collections" 'GET nil nil))
+Useful for discovering valid collection IDs for /api/v1/collections requests."
+  (karakeep-api-request "/api/v1/collections" 'GET nil nil))
 
 ;;;###autoload
 (defun karakeep-debug-collections ()
