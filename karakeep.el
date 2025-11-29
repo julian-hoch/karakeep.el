@@ -42,7 +42,9 @@
   :group 'convenience)
 
 (defcustom karakeep-debug nil
-  "Enable debug messages for karakeep operations."
+  "Enable debug messages for karakeep operations.
+This variable is kept for backward compatibility; prefer
+`karakeep-debug-enable'."
   :type 'boolean
   :group 'karakeep)
 
@@ -94,7 +96,8 @@ collection."
   :group 'karakeep)
 
 (defcustom karakeep-debug-enable t
-  "Enable verbose debug messages for HTTP requests."
+  "Enable verbose debug messages for HTTP requests.
+Takes precedence over the deprecated `karakeep-debug'."
   :type 'boolean
   :group 'karakeep)
 
@@ -117,8 +120,8 @@ collection."
 ;;;; Small helpers (pure where possible)
 
 (defun karakeep--debug (fmt &rest args)
-  "Log debug message if `karakeep-debug' is enabled."
-  (when karakeep-debug
+  "Log debug message if debug logging is enabled."
+  (when (or karakeep-debug-enable karakeep-debug)
     (message "karakeep.el: %s" (apply #'format fmt args))))
 
 (defun karakeep--mask (s)
@@ -251,20 +254,22 @@ A list is normalized element-wise."
 
 (defun karakeep--url (endpoint &optional query-alist)
   "Compose full URL for ENDPOINT with QUERY-ALIST."
-  (concat (replace-regexp-in-string "/$" "" karakeep-api-base)
-          (if (string-prefix-p "/" endpoint) endpoint (concat "/" endpoint))
+  (let* ((base (replace-regexp-in-string "/$" "" karakeep-api-base))
+         (ep (if (string-prefix-p "/" endpoint) endpoint (concat "/" endpoint))))
+    ;; Avoid doubling "/api" if users configure `karakeep-api-base' with a path.
+    (when (and (string-prefix-p "/api/" ep)
+               (or (string-suffix-p "/api" base)
+                   (string-suffix-p "/api/v1" base)))
+      (setq base (substring base 0 (string-match "/api" base))))
+    (concat base
+            ep
           (when query-alist
             (concat "?" (karakeep--build-query query-alist)))))
 
-(defun karakeep--collection-endpoint (collection)
-  "Return the base endpoint for listing by COLLECTION."
-  (let* ((id (cond
-              ((numberp collection) collection)
-              ((or (eq collection 'all) (eq collection :all) (null collection)) karakeep-default-collection)
-              (t karakeep-default-collection))))
-    (if (<= id 0)
-        "/bookmarks"
-      (format "/collections/%s/bookmarks" id))))
+(defun karakeep--collection-endpoint (_collection)
+  "Return the base endpoint for listing by COLLECTION.
+Deprecated: all bookmark reads go through the unified /api/v1 endpoints."
+  "/api/v1/bookmarks")
 
 (defun karakeep--endpoint-for (collection search-present)
   "Pick the correct endpoint given COLLECTION and SEARCH-PRESENT."
@@ -310,7 +315,7 @@ A list is normalized element-wise."
   "Perform HTTP request to Karakeep API (synchronous).
 Return parsed JSON as alist. Signal `user-error` for HTTP or parse errors."
   (let* ((method (or method 'GET))
-         (url (concat karakeep-api-base endpoint))
+         (url (karakeep--url endpoint query-alist))
          (token (karakeep--get-token))
          (headers `(("Authorization" . ,(concat "Bearer " token))
                     ("Content-Type" . "application/json")))
@@ -318,12 +323,11 @@ Return parsed JSON as alist. Signal `user-error` for HTTP or parse errors."
          (type (pcase method ('GET "GET") ('PUT "PUT") ('POST "POST") ('DELETE "DELETE") (_ "GET")))
          (result-data nil)
          (result-error nil))
-    (when karakeep-debug
-      (karakeep--debug "[sync] %s %s" type url))
+    (karakeep--debug "[sync] %s %s" type url)
     (request url
       :type type
       :headers headers
-      :params query-alist
+      :params nil
       :data json-data
       :parser 'json-read
       :encoding 'utf-8
@@ -344,21 +348,20 @@ Return parsed JSON as alist. Signal `user-error` for HTTP or parse errors."
   "Asynchronous HTTP request to Karakeep API.
 CALLBACK is called as (func RESULT ERR), where only one of RESULT/ERR is non-nil."
   (let* ((method (or method 'GET))
-         (url (concat karakeep-api-base endpoint))
+         (url (karakeep--url endpoint query-alist))
          (token (karakeep--get-token))
          (headers `(("Authorization" . ,(concat "Bearer " token))
                     ("Content-Type" . "application/json")))
          (json-data (when data (json-encode data)))
          (type (pcase method ('GET "GET") ('PUT "PUT") ('POST "POST") ('DELETE "DELETE") (_ "GET")))
          (cb (or callback #'ignore)))
-    (when karakeep-debug
-      (karakeep--debug "[async] %s %s" type url))
+    (karakeep--debug "[async] %s %s" type url)
     (request url
-      :type type 
-      :headers headers 
-      :params query-alist 
+      :type type
+      :headers headers
+      :params nil
       :data json-data
-      :parser 'json-read 
+      :parser 'json-read
       :encoding 'utf-8
       :success (cl-function (lambda (&key data &allow-other-keys)
                               (funcall cb data nil)))
@@ -493,13 +496,13 @@ Returns cons (ENDPOINT . QUERY-PARAMS)."
   (let* ((cid (if (numberp collection-id) collection-id karakeep-default-collection))
          (pp (max 1 (min (or limit 50) 200)))
          (pg (max 0 (or page 0)))
-         (endpoint (if (<= cid 0)
-                        "/bookmarks"
-                      (format "/collections/%d/bookmarks" cid)))
+         (endpoint "/api/v1/bookmarks/search")
          (q (seq-filter #'consp
                         (append
                          (when (and search (not (string-empty-p search)))
                            (list (cons 'q search)))
+                         (when (> cid 0)
+                           (list (cons 'collectionId cid)))
                          (list (cons 'limit pp)
                                (cons 'page pg))))))
     (cons endpoint q)))
@@ -628,8 +631,7 @@ According to Karakeep API, you can exclude tags using '-tag'."
 :tags (list or string), :excluded-tags (list or string), :folders (list/string) or :folder (string),
 :search (string), :collection (number or 0 for all), :limit (int), :sort (symbol), :match ('all|'any).
 Returns list of normalized items."
-  (when karakeep-debug
-    (karakeep--debug "fetch %S" plist))
+  (karakeep--debug "fetch %S" plist)
   (let* ((tags (plist-get plist :tags))
          (excluded-tags (plist-get plist :excluded-tags))
          (folders (or (plist-get plist :folders)
@@ -649,8 +651,7 @@ Returns list of normalized items."
                         (when (and search-text (not (string-empty-p (string-trim search-text))))
                           (list (string-trim search-text)))))
                  " ")))
-    (when karakeep-debug
-      (karakeep--debug "fetch input=%S limit=%S" input limit))
+    (karakeep--debug "fetch input=%S limit=%S" input limit)
     (if (string-empty-p (string-trim input))
         '()  ; Return empty list if no search criteria
       (progn
@@ -678,24 +679,17 @@ Returns list of normalized items."
                         (when (and search-text (not (string-empty-p (string-trim search-text))))
                           (list (string-trim search-text)))))
                  " ")))
-    (when karakeep-debug
-      (karakeep--debug "fetch-async input=%S limit=%S" input limit))
+    (karakeep--debug "fetch-async input=%S limit=%S" input limit)
     (if (string-empty-p (string-trim input))
         (funcall callback '() nil)  ; Return empty list if no search criteria
       (karakeep-search-bookmarks input callback limit))))
 
 ;;;; Filters API
 
-(defun karakeep--filters-endpoint (collection)
-  "Return the Filters endpoint for COLLECTION."
-  (let* ((id (cond
-              ((numberp collection) collection)
-              ((or (eq collection 'all) (eq collection :all) (null collection)) karakeep-default-collection)
-              (t karakeep-default-collection)))
-         (cid (if (<= id 0) 0 id)))
-    (if (<= cid 0)
-        "/bookmarks/filters"
-      (format "/collections/%s/filters" cid))))
+(defun karakeep--filters-endpoint (_collection)
+  "Return the Filters endpoint for COLLECTION.
+Deprecated: filters are served from /api/v1/bookmarks/filters."
+  "/api/v1/bookmarks/filters")
 
 (defun karakeep-filters (&rest plist)
   "Fetch aggregated filters for a given collection.
@@ -714,6 +708,8 @@ tags (list of {_id count}), types (list of {_id count})."
                                  ('_id "_id")
                                  ('count "count")
                                  (_ "count")))
+                  ,@(when (and (numberp collection) (> collection 0))
+                      `((collectionId . ,collection)))
                   ,@(when (and search (stringp search) (> (length search) 0))
                       `((q . ,search)))))
          (payload (karakeep-api-request endpoint 'GET query nil)))
@@ -838,7 +834,7 @@ SEEN is used to prevent infinite loops."
       (push callback karakeep--collections-callbacks))
     (setq karakeep--collections-loading t)
     (karakeep-api-request-async
-     "/collections" 'GET nil nil
+     "/api/v1/collections" 'GET nil nil
      (lambda (root-res root-err)
        (if root-err
            (progn
@@ -849,7 +845,7 @@ SEEN is used to prevent infinite loops."
            (when (vectorp root-items)
              (setq root-items (append root-items nil)))
            (karakeep-api-request-async
-            "/collections/childrens" 'GET nil nil
+            "/api/v1/collections/childrens" 'GET nil nil
             (lambda (child-res child-err)
               (setq karakeep--collections-loading nil)
               (let ((child-items (unless child-err
@@ -865,11 +861,11 @@ SEEN is used to prevent infinite loops."
 (defun karakeep--ensure-collections-sync ()
   "Ensure collections are loaded synchronously."
   (unless karakeep--collections-ready
-    (let* ((root-res (karakeep-api-request "/collections" 'GET nil nil))
+    (let* ((root-res (karakeep-api-request "/api/v1/collections" 'GET nil nil))
            (root-items (let ((items (alist-get 'items root-res)))
                          (if (vectorp items) (append items nil) items)))
            (child-res (condition-case nil
-                          (karakeep-api-request "/collections/childrens" 'GET nil nil)
+                          (karakeep-api-request "/api/v1/collections/childrens" 'GET nil nil)
                         (error nil)))
            (child-items (when child-res
                           (let ((items (alist-get 'items child-res)))
@@ -1024,8 +1020,7 @@ Returns list of tags or calls CALLBACK with (tags err)."
   (setq karakeep--tags-ready nil
         karakeep--tags-cache nil
         karakeep--tags-loading nil)
-  (when karakeep-debug
-    (karakeep--debug "force loading tags..."))
+  (karakeep--debug "force loading tags...")
   (if callback
       (progn
         (setq karakeep--tags-loading t)
@@ -1033,18 +1028,15 @@ Returns list of tags or calls CALLBACK with (tags err)."
          (lambda (tags err)
            (setq karakeep--tags-loading nil)
            (if err
-               (when karakeep-debug
-                 (karakeep--debug "tags load error: %s" err))
+               (karakeep--debug "tags load error: %s" err)
              (setq karakeep--tags-cache tags
                    karakeep--tags-ready t)
-             (when karakeep-debug
-               (karakeep--debug "loaded %d tags" (length tags))))
+             (karakeep--debug "loaded %d tags" (length tags)))
            (funcall callback (or tags '()) err))))
     (let ((tags (karakeep--fetch-tags)))
       (setq karakeep--tags-cache tags
             karakeep--tags-ready t)
-      (when karakeep-debug
-        (karakeep--debug "loaded %d tags" (length tags)))
+      (karakeep--debug "loaded %d tags" (length tags))
       tags)))
 
 (defun karakeep-load-tags (&optional callback)
@@ -1053,20 +1045,17 @@ If CALLBACK is provided, performs async request when needed, otherwise sync.
 Returns list of tags or calls CALLBACK with (tags err)."
   (cond
    ((and karakeep--tags-ready karakeep--tags-cache)
-    (when karakeep-debug
-      (karakeep--debug "using cached tags (%d items)" (length karakeep--tags-cache)))
+    (karakeep--debug "using cached tags (%d items)" (length karakeep--tags-cache))
     (if callback
         (funcall callback karakeep--tags-cache nil)
       karakeep--tags-cache))
    (karakeep--tags-loading
-    (when karakeep-debug
-      (karakeep--debug "tags are loading, returning empty for now"))
+    (karakeep--debug "tags are loading, returning empty for now")
     (if callback
         (funcall callback '() nil)
       '()))
    (t
-    (when karakeep-debug
-      (karakeep--debug "loading tags from API..."))
+    (karakeep--debug "loading tags from API...")
     (if callback
         (progn
           (setq karakeep--tags-loading t)
@@ -1106,8 +1095,8 @@ Returns list of tags or calls CALLBACK with (tags err)."
 
 (defun karakeep-collections ()
   "Get the user's collection list (alist payload).
-Useful for discovering valid collection IDs for /collections/{id}/bookmarks requests."
-  (karakeep-api-request "/collections" 'GET nil nil))
+Useful for discovering valid collection IDs for /api/v1/collections requests."
+  (karakeep-api-request "/api/v1/collections" 'GET nil nil))
 
 ;;;###autoload
 (defun karakeep-debug-collections ()
@@ -1131,11 +1120,20 @@ Useful for discovering valid collection IDs for /collections/{id}/bookmarks requ
 (defun karakeep-debug-search (tags &optional collection)
   "Make a raw API request filtered by TAGS and return the payload (alist).
 TAGS is a string or list of tags. COLLECTION is a collection id (default 0 = all collections)."
+  (interactive
+   (list (read-string "Tags (space-separated, empty for none): ")
+         (when current-prefix-arg
+           (read-number "Collection id (default 0 = all): " 0))))
   (let* ((tags-list (karakeep-parse-tags tags))
          (search (and tags-list (karakeep--build-tag-search tags-list 'all)))
          (coll (if (numberp collection) collection 0))
-         (endpoint (karakeep--endpoint-for coll (and search t))))
-    (karakeep-api-request endpoint 'GET `((limit . 5) ,@(when search `((q . ,search)))) nil)))
+         (endpoint (karakeep--endpoint-for coll (and search t)))
+         (payload (karakeep-api-request endpoint 'GET `((limit . 5) ,@(when search `((q . ,search)))) nil)))
+    (when (called-interactively-p 'interactive)
+      (message "karakeep.el: debug-search %s → %s"
+               endpoint
+               (or (alist-get 'items payload) payload)))
+    payload))
 
 ;;;###autoload
 (defun karakeep-debug-fetch (tags &optional collection limit)

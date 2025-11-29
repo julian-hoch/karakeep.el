@@ -4,6 +4,10 @@
 
 #+TITLE: karakeep.el — Karakeep → Org-mode
 
+*Warning*: This repository is a fork of [[https://github.com/Artawower/raindrop.el][raindrop.el]] and exists primarily
+as an experiment to evaluate large language models' ability to build Emacs
+packages. It is not intended for real-world use.
+
 
 
 * Introduction
