@@ -254,8 +254,15 @@ A list is normalized element-wise."
 
 (defun karakeep--url (endpoint &optional query-alist)
   "Compose full URL for ENDPOINT with QUERY-ALIST."
-  (concat (replace-regexp-in-string "/$" "" karakeep-api-base)
-          (if (string-prefix-p "/" endpoint) endpoint (concat "/" endpoint))
+  (let* ((base (replace-regexp-in-string "/$" "" karakeep-api-base))
+         (ep (if (string-prefix-p "/" endpoint) endpoint (concat "/" endpoint))))
+    ;; Avoid doubling "/api" if users configure `karakeep-api-base' with a path.
+    (when (and (string-prefix-p "/api/" ep)
+               (or (string-suffix-p "/api" base)
+                   (string-suffix-p "/api/v1" base)))
+      (setq base (substring base 0 (string-match "/api" base))))
+    (concat base
+            ep
           (when query-alist
             (concat "?" (karakeep--build-query query-alist)))))
 
