@@ -264,7 +264,7 @@ A list is normalized element-wise."
     (concat base
             ep
           (when query-alist
-            (concat "?" (karakeep--build-query query-alist)))))
+            (concat "?" (karakeep--build-query query-alist))))))
 
 (defun karakeep--collection-endpoint (_collection)
   "Return the base endpoint for listing by COLLECTION.
